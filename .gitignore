@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+backend/.venv/
+
+# Build
+frontend/dist/
+
+# Logs
+.logs/
+
+# Cache
+backend/.pytest_cache/
+__pycache__/
+
+# Environment
+.env
+backend/.env
+
+# IDE / Tool
+.claude/
+
+# 毕设相关文件
+毕设-开题报告-赵沛.docx
+任务书 (2).docx
+最终要求验收表.md
+智能人岗匹配系统_功能设计文档.md
+报告书功能对齐清单.md
+任务书与毕设差距分析表.md

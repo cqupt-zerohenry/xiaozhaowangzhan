@@ -1,0 +1,11 @@
+{
+  "name": "ai-campus-recruit-platform",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "bash ./start.sh",
+    "dev:reset": "bash ./reset-db.sh && bash ./start.sh",
+    "infra:up": "docker compose -f docker-compose.dev.yml up -d mysql redis",
+    "infra:down": "docker compose -f docker-compose.dev.yml down"
+  }
+}
