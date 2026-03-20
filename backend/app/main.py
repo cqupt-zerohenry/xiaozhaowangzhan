@@ -80,27 +80,28 @@ async def chat_socket(websocket: WebSocket, user_id: int) -> None:
             if data.startswith('to:'):
                 parts = data.split(':', 2)
                 if len(parts) == 3:
+                    receiver_id_str, content = parts[1], parts[2]
                     try:
-                        receiver_id = int(parts[1])
-                        content = parts[2]
-                        # Persist to database
-                        from app.models import Message as MessageModel
-                        db = SessionLocal()
-                        try:
-                            msg = MessageModel(
-                                sender_id=user_id,
-                                receiver_id=receiver_id,
-                                content=content,
-                                message_type='text',
-                            )
-                            db.add(msg)
-                            db.commit()
-                        finally:
-                            db.close()
-                        # Send to receiver if online
-                        await manager.send_personal(receiver_id, f'from:{user_id}:{content}')
-                    except (ValueError, Exception):
-                        pass
+                        receiver_id = int(receiver_id_str)
+                    except ValueError:
+                        continue
+                    # Persist to database with proper session handling
+                    from app.models import Message as MessageModel
+                    db = SessionLocal()
+                    try:
+                        msg = MessageModel(
+                            sender_id=user_id,
+                            receiver_id=receiver_id,
+                            content=content,
+                            message_type='text',
+                        )
+                        db.add(msg)
+                        db.commit()
+                    except Exception:
+                        db.rollback()
+                    finally:
+                        db.close()
+                    await manager.send_personal(receiver_id, f'from:{user_id}:{content}')
             else:
                 await manager.broadcast(f'user:{user_id}: {data}')
     except WebSocketDisconnect:

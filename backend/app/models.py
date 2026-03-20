@@ -232,3 +232,39 @@ class RecommendConfig(Base):
     collaborative_weight: Mapped[float] = mapped_column(default=0.4)
     content_weight: Mapped[float] = mapped_column(default=0.6)
     update_time: Mapped[datetime] = mapped_column(DateTime, default=now_utc, onupdate=now_utc)
+
+
+class KnowledgeBase(Base):
+    __tablename__ = 'knowledge_bases'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey('users.id'), index=True)
+    owner_role: Mapped[str] = mapped_column(String(20))
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(Text, default='')
+    create_time: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
+    update_time: Mapped[datetime] = mapped_column(DateTime, default=now_utc, onupdate=now_utc)
+
+
+class KnowledgeDocument(Base):
+    __tablename__ = 'knowledge_documents'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    kb_id: Mapped[int] = mapped_column(ForeignKey('knowledge_bases.id'), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    source_type: Mapped[str] = mapped_column(String(20), default='paste')
+    raw_content: Mapped[str] = mapped_column(LONGTEXT, default='')
+    file_url: Mapped[str] = mapped_column(String(500), default='')
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(20), default='ready')
+    create_time: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
+
+
+class KnowledgeChunk(Base):
+    __tablename__ = 'knowledge_chunks'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey('knowledge_documents.id'), index=True)
+    kb_id: Mapped[int] = mapped_column(ForeignKey('knowledge_bases.id'), index=True)
+    chunk_index: Mapped[int] = mapped_column(Integer, default=0)
+    content: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    token_count: Mapped[int] = mapped_column(Integer, default=0)
+    create_time: Mapped[datetime] = mapped_column(DateTime, default=now_utc)

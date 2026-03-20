@@ -180,6 +180,7 @@ import {
   updateUserStatus,
   updateVerificationRequest
 } from '../services/api';
+import toast from '../utils/toast';
 
 const users = ref([]);
 const announcements = ref([]);
@@ -222,16 +223,16 @@ async function loadRecommendConfig() {
 
 async function doResetPassword(userId) {
   if (!resetPasswordValue.value || resetPasswordValue.value.length < 6) {
-    alert('密码至少6位');
+    toast.warn('密码至少6位');
     return;
   }
   try {
     await resetUserPassword(userId, { new_password: resetPasswordValue.value });
     resetPasswordId.value = null;
     resetPasswordValue.value = '';
-    alert('密码已重置');
+    toast.success('密码已重置');
   } catch (e) {
-    alert('重置失败');
+    toast.error('重置失败');
   }
 }
 
@@ -241,9 +242,9 @@ async function saveRecommendConfig() {
       collaborative_weight: parseFloat(recommendConfig.value.collaborative_weight) || 0.4,
       content_weight: parseFloat(recommendConfig.value.content_weight) || 0.6
     });
-    alert('推荐配置已更新');
+    toast.success('推荐配置已更新');
   } catch (e) {
-    alert('更新失败');
+    toast.error('更新失败');
   }
 }
 

@@ -37,7 +37,75 @@
         </div>
 
         <div class="card ai-panel">
-          <div v-if="activeTab === 'match'" class="panel-content">
+          <div v-if="activeTab === 'knowledge-base'" class="panel-content">
+            <div class="panel-header">
+              <div>
+                <h2>知识库管理</h2>
+                <p>上传文档或粘贴内容构建 RAG 知识库，用于面试出题和职业问答。</p>
+              </div>
+            </div>
+            <div class="form-grid">
+              <input v-model="kbForm.name" placeholder="知识库名称（如：后端技术文档）" />
+              <input v-model="kbForm.description" placeholder="描述（可选）" />
+              <button class="btn" @click="createKB">创建知识库</button>
+            </div>
+            <p v-if="kbStatus" class="mono">{{ kbStatus }}</p>
+
+            <div class="list-wrap">
+              <h3>我的知识库</h3>
+              <div v-if="knowledgeBases.length === 0" class="mono">暂无知识库，请先创建</div>
+              <div v-else class="list">
+                <div
+                  class="list-item"
+                  :class="{ active: selectedKbId === kb.id }"
+                  v-for="kb in knowledgeBases"
+                  :key="kb.id"
+                  @click="selectKB(kb.id)"
+                  style="cursor:pointer"
+                >
+                  <div>
+                    <strong>{{ kb.name }}</strong>
+                    <p class="mono">{{ kb.description || '无描述' }}</p>
+                  </div>
+                  <div class="actions">
+                    <button class="btn btn-outline" @click.stop="removeKB(kb.id)">删除</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <template v-if="selectedKbId">
+              <div class="divider"></div>
+              <h3>添加文档到知识库</h3>
+              <div class="form-grid">
+                <input v-model="kbDocForm.title" placeholder="文档标题" />
+              </div>
+              <textarea v-model="kbDocForm.content" rows="6" placeholder="粘贴知识内容（技术文档、面试题库、课程笔记等）"></textarea>
+              <div class="actions">
+                <button class="btn" @click="addDocPaste">添加文档</button>
+                <label class="upload-label">
+                  上传文件（txt/md）
+                  <input type="file" accept=".txt,.md" @change="uploadDoc" />
+                </label>
+              </div>
+
+              <div class="list-wrap">
+                <h3>文档列表</h3>
+                <div v-if="kbDocuments.length === 0" class="mono">暂无文档</div>
+                <div v-else class="list">
+                  <div class="list-item" v-for="doc in kbDocuments" :key="doc.id">
+                    <div>
+                      <strong>{{ doc.title }}</strong>
+                      <p class="mono">{{ doc.source_type }} · {{ doc.chunk_count }} 个切片 · {{ doc.status }}</p>
+                    </div>
+                    <button class="btn btn-outline" @click="removeDoc(doc.id)">删除</button>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <div v-else-if="activeTab === 'match'" class="panel-content">
             <div class="panel-header">
               <div>
                 <h2>岗位匹配</h2>
@@ -68,17 +136,34 @@
             <div class="panel-header">
               <div>
                 <h2>职业 RAG 助手</h2>
-                <p>问答 + 学习路径 + 技能树。</p>
+                <p>基于知识库检索回答职业问题。</p>
               </div>
             </div>
+            <select v-model="ragKbId">
+              <option :value="null">全部知识库（默认）</option>
+              <option v-for="kb in knowledgeBases" :key="kb.id" :value="kb.id">{{ kb.name }}</option>
+            </select>
             <textarea v-model="ragQuestion" rows="3" placeholder="例如：SRE 需要学习什么？"></textarea>
             <button class="btn" @click="runRag">提问</button>
             <div v-if="ragAnswer" class="result-block">
-              <p>{{ ragAnswer.answer }}</p>
+              <p style="white-space:pre-wrap">{{ ragAnswer.answer }}</p>
               <div class="result-tags">
                 <span class="tag" v-for="path in ragAnswer.learning_path" :key="path">{{ path }}</span>
               </div>
               <p class="mono">技能树：{{ ragAnswer.skill_tree.join(' | ') }}</p>
+              <template v-if="ragAnswer.sources && ragAnswer.sources.length > 0">
+                <div class="divider"></div>
+                <h4>检索来源</h4>
+                <div class="list">
+                  <div class="list-item" v-for="(src, idx) in ragAnswer.sources" :key="idx">
+                    <div>
+                      <strong>{{ src.document_title }}</strong>
+                      <p class="mono">{{ src.chunk_content.slice(0, 150) }}{{ src.chunk_content.length > 150 ? '...' : '' }}</p>
+                    </div>
+                    <span class="tag mono">{{ (src.relevance_score * 100).toFixed(0) }}%</span>
+                  </div>
+                </div>
+              </template>
             </div>
           </div>
 
@@ -152,12 +237,18 @@
                 <p>基于题型模板自动生成初筛问题并输出建议。</p>
               </div>
             </div>
-            <select v-model.number="selectedTemplateId">
-              <option :value="0">选择模板</option>
-              <option v-for="item in templates" :key="item.id" :value="item.id">
-                {{ item.name }}（{{ item.job_title }}）
-              </option>
-            </select>
+            <div class="form-grid">
+              <select v-model.number="selectedTemplateId">
+                <option :value="0">选择模板</option>
+                <option v-for="item in templates" :key="item.id" :value="item.id">
+                  {{ item.name }}（{{ item.job_title }}）
+                </option>
+              </select>
+              <select v-model="screeningKbId">
+                <option :value="null">不使用知识库</option>
+                <option v-for="kb in knowledgeBases" :key="kb.id" :value="kb.id">{{ kb.name }}</option>
+              </select>
+            </div>
             <div class="form-grid">
               <input v-model="screeningCandidate.candidate_name" placeholder="候选人姓名（可选）" />
               <input
@@ -184,9 +275,9 @@
                 <h3>近期初筛记录</h3>
                 <button class="chip" @click="loadSessions('screening')">刷新</button>
               </div>
-              <div v-if="sessions.length === 0" class="mono">暂无记录</div>
+              <div v-if="screeningSessions.length === 0" class="mono">暂无记录</div>
               <div v-else class="list">
-                <div class="list-item" v-for="item in sessions" :key="item.id">
+                <div class="list-item" v-for="item in screeningSessions" :key="item.id">
                   <div>
                     <strong>会话 #{{ item.id }}</strong>
                     <p class="mono">{{ item.session_type }} · {{ formatTime(item.create_time) }}</p>
@@ -197,15 +288,57 @@
             </div>
           </div>
 
+          <div v-else-if="activeTab === 'resume-optimize'" class="panel-content">
+            <div class="panel-header">
+              <div>
+                <h2>AI 简历优化建议</h2>
+                <p>输入目标岗位，AI 分析你的简历并给出优化建议。</p>
+              </div>
+            </div>
+            <input v-model="resumeJobTitle" placeholder="目标岗位（如：后端开发工程师）" />
+            <button class="btn" @click="runResumeOptimize" :disabled="resumeLoading">
+              {{ resumeLoading ? '分析中...' : '开始分析' }}
+            </button>
+            <div v-if="resumeResult" class="result-block">
+              <p><strong>总评：</strong>{{ resumeResult.summary }}</p>
+              <div v-if="resumeResult.strengths.length">
+                <strong>优势</strong>
+                <div class="tags" style="margin-top:6px">
+                  <span class="tag" v-for="s in resumeResult.strengths" :key="s">{{ s }}</span>
+                </div>
+              </div>
+              <div v-if="resumeResult.suggestions.length">
+                <strong>改进建议</strong>
+                <ul>
+                  <li v-for="s in resumeResult.suggestions" :key="s">{{ s }}</li>
+                </ul>
+              </div>
+              <div v-if="resumeResult.missing_skills.length">
+                <strong>建议补充的技能</strong>
+                <div class="tags" style="margin-top:6px">
+                  <span class="tag" v-for="s in resumeResult.missing_skills" :key="s" style="background:rgba(255,107,53,0.1);color:#ff6b35">{{ s }}</span>
+                </div>
+              </div>
+              <div v-if="resumeResult.bio_rewrite">
+                <strong>自我评价改写建议</strong>
+                <p style="white-space:pre-wrap;background:#f8faf9;padding:12px;border-radius:10px;margin-top:6px">{{ resumeResult.bio_rewrite }}</p>
+              </div>
+            </div>
+          </div>
+
           <div v-else-if="activeTab === 'student-mock-upload'" class="panel-content">
             <div class="panel-header">
               <div>
                 <h2>学习内容模拟面试</h2>
-                <p>上传或粘贴学习内容，生成定制面试问题与反馈。</p>
+                <p>上传或粘贴学习内容，结合知识库生成定制面试问题与反馈。</p>
               </div>
             </div>
             <div class="form-grid">
               <input v-model="mockUploadForm.job_title" placeholder="目标岗位" />
+              <select v-model="mockKbId">
+                <option :value="null">不使用知识库</option>
+                <option v-for="kb in knowledgeBases" :key="kb.id" :value="kb.id">{{ kb.name }}</option>
+              </select>
               <input v-model="mockUploadForm.learning_focus_input" placeholder="学习重点（逗号分隔，可选）" />
               <input v-model="mockUploadForm.question_types_input" placeholder="题型（逗号分隔，可选）" />
               <select v-model="mockUploadForm.difficulty">
@@ -242,9 +375,9 @@
                 <h3>近期模拟记录</h3>
                 <button class="chip" @click="loadSessions('mock')">刷新</button>
               </div>
-              <div v-if="sessions.length === 0" class="mono">暂无记录</div>
+              <div v-if="mockSessions.length === 0" class="mono">暂无记录</div>
               <div v-else class="list">
-                <div class="list-item" v-for="item in sessions" :key="item.id">
+                <div class="list-item" v-for="item in mockSessions" :key="item.id">
                   <div>
                     <strong>会话 #{{ item.id }}</strong>
                     <p class="mono">{{ item.session_type }} · {{ formatTime(item.create_time) }}</p>
@@ -280,19 +413,28 @@
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
 import {
+  addKBDocumentPaste,
   createInterviewTemplate,
+  createKnowledgeBase,
   deleteInterviewTemplate,
+  deleteKBDocument,
+  deleteKnowledgeBase,
   fetchInterviewSessions,
   fetchInterviewTemplates,
+  fetchKBDocuments,
+  fetchKnowledgeBases,
   interview,
   jobRecommend,
   mockInterview,
   rag,
+  resumeOptimize,
   screeningInterview,
   studentMockUpload,
-  updateInterviewTemplate
+  updateInterviewTemplate,
+  uploadKBDocument
 } from "../services/api";
 import { useAuth } from "../store/auth";
+import toast from '../utils/toast';
 
 const auth = useAuth();
 const role = computed(() => auth.role.value);
@@ -301,6 +443,7 @@ const canStudentMockUpload = computed(() => role.value === "student");
 
 const tabs = computed(() => {
   const base = [
+    { key: "knowledge-base", title: "知识库", desc: "管理 RAG 知识库" },
     { key: "match", title: "岗位匹配", desc: "技能匹配与差距" },
     { key: "rag", title: "职业 RAG", desc: "学习路径与技能树" },
     { key: "interview", title: "AI 面试官", desc: "快速问题与评价" }
@@ -310,6 +453,7 @@ const tabs = computed(() => {
     base.push({ key: "company-screening", title: "AI 初筛", desc: "模板化初筛" });
   }
   if (canStudentMockUpload.value) {
+    base.push({ key: "resume-optimize", title: "简历优化", desc: "AI 优化建议" });
     base.push({ key: "student-mock-upload", title: "学习内容模拟", desc: "上传学习内容" });
   }
   base.push({ key: "mock", title: "快速模拟", desc: "简版模拟面试" });
@@ -365,7 +509,22 @@ const mockUploadForm = ref({
   question_count: 5
 });
 const mockUploadPack = ref(null);
-const sessions = ref([]);
+const screeningSessions = ref([]);
+const mockSessions = ref([]);
+
+// Knowledge Base state
+const knowledgeBases = ref([]);
+const kbForm = ref({ name: "", description: "" });
+const kbDocForm = ref({ title: "", content: "" });
+const selectedKbId = ref(null);
+const kbDocuments = ref([]);
+const kbStatus = ref("");
+const ragKbId = ref(null);
+const screeningKbId = ref(null);
+const mockKbId = ref(null);
+const resumeJobTitle = ref('');
+const resumeResult = ref(null);
+const resumeLoading = ref(false);
 
 function parseList(text) {
   return (text || "")
@@ -396,7 +555,11 @@ async function runRecommend() {
 
 async function runRag() {
   try {
-    ragAnswer.value = await rag({ question: ragQuestion.value });
+    ragAnswer.value = await rag({
+      question: ragQuestion.value,
+      kb_id: ragKbId.value || undefined,
+      top_k: 5
+    });
   } catch (err) {
     ragAnswer.value = null;
   }
@@ -506,7 +669,8 @@ async function runScreening() {
       candidate_name: screeningCandidate.value.candidate_name,
       candidate_summary: screeningCandidate.value.candidate_summary,
       candidate_skills: parseList(screeningCandidate.value.candidate_skills_input),
-      candidate_experience: screeningCandidate.value.candidate_experience
+      candidate_experience: screeningCandidate.value.candidate_experience,
+      kb_id: screeningKbId.value || undefined
     });
     await loadSessions("screening");
   } catch (err) {
@@ -526,6 +690,7 @@ function onLearningFileChange(event) {
 
 async function runStudentMockUpload() {
   if (!mockUploadForm.value.learning_content || mockUploadForm.value.learning_content.length < 10) {
+    toast.warn('学习内容至少需要 10 个字符');
     return;
   }
   try {
@@ -535,7 +700,8 @@ async function runStudentMockUpload() {
       learning_focus: parseList(mockUploadForm.value.learning_focus_input),
       question_types: parseList(mockUploadForm.value.question_types_input),
       difficulty: mockUploadForm.value.difficulty,
-      question_count: Number(mockUploadForm.value.question_count) || 5
+      question_count: Number(mockUploadForm.value.question_count) || 5,
+      kb_id: mockKbId.value || undefined
     });
     await loadSessions("mock");
   } catch (err) {
@@ -545,16 +711,109 @@ async function runStudentMockUpload() {
 
 async function loadSessions(sessionType = "") {
   try {
-    sessions.value = await fetchInterviewSessions({
+    const data = await fetchInterviewSessions({
       session_type: sessionType || undefined,
       limit: 10
     });
+    if (sessionType === "screening") {
+      screeningSessions.value = data;
+    } else if (sessionType === "mock") {
+      mockSessions.value = data;
+    } else {
+      screeningSessions.value = data;
+      mockSessions.value = data;
+    }
   } catch (err) {
-    sessions.value = [];
+    if (sessionType === "screening") {
+      screeningSessions.value = [];
+    } else if (sessionType === "mock") {
+      mockSessions.value = [];
+    }
   }
 }
 
+async function runResumeOptimize() {
+  if (!resumeJobTitle.value) { toast.warn('请输入目标岗位'); return; }
+  resumeLoading.value = true;
+  try {
+    resumeResult.value = await resumeOptimize({ job_title: resumeJobTitle.value });
+  } catch (e) {
+    toast.error('简历优化分析失败');
+    resumeResult.value = null;
+  } finally {
+    resumeLoading.value = false;
+  }
+}
+
+// --- Knowledge Base functions ---
+async function loadKnowledgeBases() {
+  try {
+    knowledgeBases.value = await fetchKnowledgeBases();
+  } catch (e) {
+    knowledgeBases.value = [];
+  }
+}
+
+async function createKB() {
+  if (!kbForm.value.name) { kbStatus.value = "请输入知识库名称"; return; }
+  try {
+    await createKnowledgeBase(kbForm.value);
+    kbForm.value = { name: "", description: "" };
+    kbStatus.value = "知识库已创建";
+    await loadKnowledgeBases();
+  } catch (e) { kbStatus.value = "创建失败"; }
+}
+
+async function removeKB(kbId) {
+  try {
+    await deleteKnowledgeBase(kbId);
+    if (selectedKbId.value === kbId) { selectedKbId.value = null; kbDocuments.value = []; }
+    kbStatus.value = "知识库已删除";
+    await loadKnowledgeBases();
+  } catch (e) { kbStatus.value = "删除失败"; }
+}
+
+async function selectKB(kbId) {
+  selectedKbId.value = kbId;
+  try {
+    kbDocuments.value = await fetchKBDocuments(kbId);
+  } catch (e) { kbDocuments.value = []; }
+}
+
+async function addDocPaste() {
+  if (!selectedKbId.value) { kbStatus.value = "请先选择知识库"; return; }
+  if (!kbDocForm.value.title || !kbDocForm.value.content) { kbStatus.value = "请填写标题和内容"; return; }
+  try {
+    await addKBDocumentPaste(selectedKbId.value, kbDocForm.value);
+    kbDocForm.value = { title: "", content: "" };
+    kbStatus.value = "文档已添加并完成向量化";
+    await selectKB(selectedKbId.value);
+    await loadKnowledgeBases();
+  } catch (e) { kbStatus.value = "添加失败"; }
+}
+
+async function uploadDoc(event) {
+  const file = event?.target?.files?.[0];
+  if (!file || !selectedKbId.value) return;
+  try {
+    await uploadKBDocument(selectedKbId.value, file);
+    kbStatus.value = "文件已上传并完成向量化";
+    await selectKB(selectedKbId.value);
+    await loadKnowledgeBases();
+  } catch (e) { kbStatus.value = "上传失败"; }
+}
+
+async function removeDoc(docId) {
+  if (!selectedKbId.value) return;
+  try {
+    await deleteKBDocument(selectedKbId.value, docId);
+    kbStatus.value = "文档已删除";
+    await selectKB(selectedKbId.value);
+  } catch (e) { kbStatus.value = "删除失败"; }
+}
+
 async function refreshRoleData() {
+  await loadKnowledgeBases();
   if (canManageTemplates.value) {
     await loadTemplates();
     await loadSessions("screening");
@@ -746,6 +1005,22 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 10px;
   align-items: center;
+}
+
+.list-item.active {
+  border-color: rgba(24, 160, 88, 0.4);
+  background: rgba(24, 160, 88, 0.08);
+}
+
+.divider {
+  height: 1px;
+  background: var(--line);
+  margin: 8px 0;
+}
+
+h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
 }
 
 .upload-label {

@@ -445,3 +445,63 @@ export function updateRecommendConfig(payload) {
 export function fetchOnlineUsers() {
   return request('/online-users');
 }
+
+// Knowledge Base
+export function fetchKnowledgeBases() {
+  return request('/ai/knowledge-bases');
+}
+
+export function createKnowledgeBase(payload) {
+  return request('/ai/knowledge-bases', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteKnowledgeBase(kbId) {
+  return request(`/ai/knowledge-bases/${kbId}`, { method: 'DELETE' });
+}
+
+export function fetchKBDocuments(kbId) {
+  return request(`/ai/knowledge-bases/${kbId}/documents`);
+}
+
+export function addKBDocumentPaste(kbId, payload) {
+  return request(`/ai/knowledge-bases/${kbId}/documents`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function uploadKBDocument(kbId, file) {
+  const token = getToken();
+  const formData = new FormData();
+  formData.append('file', file);
+  return fetch(`${API_BASE}/ai/knowledge-bases/${kbId}/documents/upload`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData
+  }).then(res => {
+    if (!res.ok) throw new Error('Upload failed');
+    return res.json();
+  });
+}
+
+export function resumeOptimize(payload) {
+  return request('/ai/resume-optimize', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteKBDocument(kbId, docId) {
+  return request(`/ai/knowledge-bases/${kbId}/documents/${docId}`, { method: 'DELETE' });
+}
+
+// AI Job Assistant (floating ball chat)
+export function jobAssistant(payload) {
+  return request('/ai/job-assistant', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}

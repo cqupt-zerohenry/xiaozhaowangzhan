@@ -12,6 +12,15 @@
             <button class="btn" @click="loadJobs">搜索</button>
           </div>
         </div>
+        <div class="quick-tags">
+          <button
+            v-for="cat in quickCategories"
+            :key="cat"
+            class="chip"
+            :class="{ active: keyword === cat }"
+            @click="keyword = keyword === cat ? ''; loadJobs() || '' : cat; loadJobs()"
+          >{{ cat }}</button>
+        </div>
         <div class="filters">
           <input v-model="company" placeholder="公司名称" />
           <input v-model="city" placeholder="城市" />
@@ -58,27 +67,30 @@
             <div class="job-main">
               <div>
                 <h3><router-link :to="`/jobs/${job.id}`" class="job-link">{{ job.job_name }}</router-link></h3>
-                <p>{{ job.description }}</p>
+                <p class="job-desc">{{ (job.description || '').slice(0, 80) }}{{ (job.description || '').length > 80 ? '...' : '' }}</p>
+                <div class="job-meta">
+                  <span>{{ job.city }}</span>
+                  <span class="salary">{{ job.salary_min }}K-{{ job.salary_max }}K</span>
+                  <span>{{ job.education }}</span>
+                  <span v-if="job.job_type">{{ job.job_type }}</span>
+                </div>
               </div>
-              <div class="job-meta mono">
-                {{ job.city }} · {{ job.salary_min }}-{{ job.salary_max }} · {{ job.education }}
+              <div class="tags">
+                <span class="tag" v-for="skill in (job.skill_tags || []).slice(0, 5)" :key="skill">{{ skill }}</span>
               </div>
             </div>
             <div class="job-side">
-              <div class="tags">
-                <span class="tag" v-for="skill in job.skill_tags" :key="skill">{{ skill }}</span>
-              </div>
               <div class="actions" v-if="role === 'company'">
                 <button class="btn btn-outline" @click="startEdit(job)">编辑</button>
                 <button class="btn btn-outline" @click="removeJob(job.id)">删除</button>
               </div>
-              <button v-else-if="role === 'student'" class="btn btn-outline" @click.stop="toggleFavorite(job.id)">
-                {{ isFavorited(job.id) ? '已收藏' : '收藏' }}
-              </button>
-              <button v-if="role === 'student'" class="btn btn-outline" @click="applyJob(job)">
-                立即投递
-              </button>
-              <button v-else class="btn btn-outline">查看详情</button>
+              <template v-else-if="role === 'student'">
+                <button class="btn" @click="applyJob(job)">立即投递</button>
+                <button class="btn btn-outline" @click.stop="toggleFavorite(job.id)">
+                  {{ isFavorited(job.id) ? '取消收藏' : '收藏' }}
+                </button>
+              </template>
+              <router-link v-else :to="`/jobs/${job.id}`" class="btn btn-outline">查看详情</router-link>
             </div>
           </div>
           <div v-if="jobs.length === 0" class="empty-state card">
@@ -95,12 +107,19 @@
           <h3>{{ role === 'student' ? '我的投递记录' : '岗位投递记录' }}</h3>
           <div class="application-list">
             <div class="application-item" v-for="item in applications" :key="item.id">
-              <div>
-                <strong>#{{ item.id }} - 岗位 {{ item.job_id }}</strong>
-                <p class="mono">学生 {{ item.student_id }} · 简历 {{ item.resume_id }}</p>
+              <div class="app-info">
+                <strong>岗位 #{{ item.job_id }}</strong>
+                <div class="step-bar">
+                  <template v-for="(step, idx) in appSteps" :key="step.key">
+                    <div class="step-node" :class="stepClass(item.status, step.key)"></div>
+                    <div v-if="idx < appSteps.length - 1" class="step-line" :class="{ done: stepDone(item.status, step.key) }"></div>
+                  </template>
+                </div>
+                <div class="step-labels">
+                  <span v-for="step in appSteps" :key="step.key" class="step-label" :class="{ active: item.status === step.key }">{{ step.label }}</span>
+                </div>
               </div>
               <div class="actions">
-                <span class="tag mono">{{ item.status }}</span>
                 <template v-if="role === 'company'">
                   <select v-model="applicationStatusDraft[item.id]">
                     <option value="submitted">已投递</option>
@@ -129,6 +148,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
+import toast from '../utils/toast';
 import {
   addFavorite,
   createApplication,
@@ -143,6 +163,28 @@ import {
   updateJob
 } from '../services/api';
 import { useAuth } from '../store/auth';
+
+const appSteps = [
+  { key: 'submitted', label: '已投递' },
+  { key: 'reviewing', label: '筛选中' },
+  { key: 'to_contact', label: '待沟通' },
+  { key: 'accepted', label: '已通过' },
+];
+const stepOrder = appSteps.map(s => s.key);
+
+function stepClass(status, stepKey) {
+  if (status === 'rejected' || status === 'withdrawn') return status === stepKey ? 'current' : '';
+  const current = stepOrder.indexOf(status);
+  const target = stepOrder.indexOf(stepKey);
+  if (target < current) return 'done';
+  if (target === current) return 'current';
+  return '';
+}
+
+function stepDone(status, stepKey) {
+  if (status === 'rejected' || status === 'withdrawn') return false;
+  return stepOrder.indexOf(stepKey) < stepOrder.indexOf(status);
+}
 
 const jobs = ref([]);
 const loadingJobs = ref(false);
@@ -175,6 +217,7 @@ async function toggleFavorite(jobId) {
   } catch (e) {}
 }
 
+const quickCategories = ['后端开发', '前端开发', 'AI算法', '产品经理', '测试', '运维/SRE', '数据分析', '设计'];
 const keyword = ref('');
 const company = ref('');
 const city = ref('');
@@ -295,23 +338,24 @@ async function submitJob() {
     resetJobForm();
     await loadJobs();
   } catch (err) {
-    // ignore
+    toast.error('岗位保存失败，请重试');
   }
 }
 
 async function removeJob(id) {
+  if (!confirm('确定要删除该岗位吗？')) return;
   try {
     await deleteJob(id);
     await loadJobs();
     await loadApplications();
   } catch (err) {
-    // ignore
+    toast.error('删除失败，请重试');
   }
 }
 
 async function applyJob(job) {
   if (resumes.value.length === 0) {
-    alert('请先在个人中心创建简历');
+    toast.warn('请先在个人中心创建简历');
     return;
   }
   try {
@@ -323,7 +367,12 @@ async function applyJob(job) {
     });
     await loadApplications();
   } catch (err) {
-    // ignore
+    const msg = err.message || '';
+    if (msg.includes('Already applied')) {
+      toast.warn('您已投递过该岗位');
+    } else {
+      toast.error('投递失败，请稍后重试');
+    }
   }
 }
 
@@ -343,7 +392,7 @@ async function withdrawApplication(applicationId) {
     await updateApplicationStatus(applicationId, { status: 'withdrawn' });
     await loadApplications();
   } catch (err) {
-    // ignore
+    toast.error('撤回失败，请稍后重试');
   }
 }
 
@@ -386,8 +435,32 @@ onMounted(async () => {
   height: 44px;
 }
 
+.quick-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.chip {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.chip.active {
+  border-color: var(--accent);
+  background: rgba(24, 160, 88, 0.1);
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
 .filters {
-  margin-top: 16px;
+  margin-top: 12px;
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -413,9 +486,16 @@ onMounted(async () => {
 
 .job-card {
   display: grid;
-  grid-template-columns: 1.4fr 0.6fr;
+  grid-template-columns: 1fr auto;
   gap: 16px;
   align-items: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.job-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px rgba(15, 31, 23, 0.12);
 }
 
 .job-main {
@@ -424,8 +504,26 @@ onMounted(async () => {
   gap: 8px;
 }
 
-.job-meta {
+.job-desc {
+  font-size: 13px;
   color: var(--muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.job-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+
+.job-meta .salary {
+  color: #ff6b35;
+  font-weight: 700;
+  font-size: 15px;
 }
 
 .job-side {
@@ -458,8 +556,17 @@ onMounted(async () => {
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 12px;
-  gap: 12px;
+  padding: 16px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.app-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 240px;
+  flex: 1;
 }
 
 .application-item select {

@@ -109,6 +109,7 @@ import {
   uploadFile
 } from "../services/api";
 import { useAuth } from "../store/auth";
+import toast from '../utils/toast';
 
 const auth = useAuth();
 const userId = auth.user.value?.id || 0;
@@ -178,8 +179,9 @@ async function saveAll() {
   try {
     await updateStudentProfile(userId, profile.value);
     await updateStudentIntention(userId, intention.value);
+    toast.success('资料已保存');
   } catch (err) {
-    // ignore
+    toast.error('保存失败，请重试');
   }
 }
 
@@ -214,7 +216,7 @@ async function uploadResumePdf(event) {
     });
     await loadData();
   } catch (e) {
-    alert('上传失败');
+    toast.error('上传失败');
   }
 }
 

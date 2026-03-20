@@ -261,12 +261,21 @@ class InterviewResponse(BaseModel):
 
 class RagRequest(BaseModel):
     question: str
+    kb_id: int | None = None
+    top_k: int = Field(default=5, ge=1, le=20)
+
+
+class RagSourceItem(BaseModel):
+    chunk_content: str
+    document_title: str
+    relevance_score: float
 
 
 class RagResponse(BaseModel):
     answer: str
     learning_path: list[str]
     skill_tree: list[str]
+    sources: list[RagSourceItem] = []
 
 
 class MockInterviewRequest(BaseModel):
@@ -313,6 +322,7 @@ class ScreeningInterviewRequest(BaseModel):
     candidate_summary: str = ''
     candidate_skills: list[str] = []
     candidate_experience: str = ''
+    kb_id: int | None = None
 
 
 class ScreeningInterviewResponse(BaseModel):
@@ -328,6 +338,7 @@ class ScreeningInterviewResponse(BaseModel):
 class StudentMockUploadRequest(BaseModel):
     job_title: str
     learning_content: str = Field(..., min_length=10)
+    kb_id: int | None = None
     learning_focus: list[str] = []
     question_types: list[str] = []
     difficulty: str = 'medium'
@@ -444,3 +455,66 @@ class SimilarJobOut(BaseModel):
 class FileUploadResponse(BaseModel):
     file_url: str
     filename: str
+
+
+# ---- Knowledge Base ----
+
+class KnowledgeBaseCreate(BaseModel):
+    name: str
+    description: str = ''
+
+
+class KnowledgeBaseOut(ORMModel):
+    id: int
+    owner_id: int
+    owner_role: str
+    name: str
+    description: str
+    create_time: datetime
+    update_time: datetime
+
+
+class KnowledgeDocumentCreate(BaseModel):
+    title: str
+    content: str = ''
+
+
+class KnowledgeDocumentOut(ORMModel):
+    id: int
+    kb_id: int
+    title: str
+    source_type: str
+    chunk_count: int
+    status: str
+    file_url: str
+    create_time: datetime
+
+
+class ResumeOptimizeRequest(BaseModel):
+    job_title: str
+
+
+class ResumeOptimizeResponse(BaseModel):
+    summary: str = ''
+    strengths: list[str] = []
+    suggestions: list[str] = []
+    missing_skills: list[str] = []
+    bio_rewrite: str = ''
+
+
+class JobAssistantRequest(BaseModel):
+    message: str
+    history: list[dict] = []
+
+
+class JobAssistantJobItem(BaseModel):
+    job_id: int
+    job_name: str
+    company_name: str = ''
+    city: str = ''
+    salary: str = ''
+
+
+class JobAssistantResponse(BaseModel):
+    reply: str
+    recommended_jobs: list[JobAssistantJobItem] = []

@@ -140,8 +140,63 @@ textarea {
   gap: 8px;
 }
 
+/* Toast notifications */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  padding: 14px 22px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  animation: toast-in 0.3s ease, toast-out 0.3s ease 2.7s forwards;
+  max-width: 360px;
+}
+
+.toast-success { background: var(--accent); }
+.toast-error { background: #e53e3e; }
+.toast-info { background: #3b82f6; }
+.toast-warn { background: #f0a020; color: #1a1a1a; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes toast-out {
+  from { opacity: 1; }
+  to { opacity: 0; transform: translateY(-10px); }
+}
+
+/* Status step bar */
+.step-bar { display: flex; align-items: center; }
+.step-node { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line); background: #fff; flex-shrink: 0; }
+.step-node.done { background: var(--accent); border-color: var(--accent); }
+.step-node.current { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 4px rgba(24,160,88,0.2); }
+.step-line { flex: 1; height: 2px; background: var(--line); min-width: 16px; }
+.step-line.done { background: var(--accent); }
+.step-labels { display: flex; justify-content: space-between; margin-top: 6px; }
+.step-label { font-size: 11px; color: var(--muted); text-align: center; flex: 1; }
+.step-label.active { color: var(--accent-dark); font-weight: 600; }
+
+/* Salary highlight */
+.salary { color: #ff6b35; font-weight: 700; }
+
 @media (max-width: 800px) {
   section {
     padding: 20px 0;
   }
+  .toast-container { right: 12px; left: 12px; }
+  .toast { max-width: 100%; }
 }

@@ -12,6 +12,7 @@ from app.cache import cache_delete_prefix, cache_get_json, cache_set_json
 from app.db import get_db
 from app.dependencies import get_current_user
 from app.models import CompanyProfile, Favorite, Job, User, ViewHistory
+from app.job_indexer import index_job_to_kb, remove_job_from_kb
 from app.security import decode_access_token
 
 _oauth2 = OAuth2PasswordBearer(tokenUrl='/api/users/login', auto_error=False)
@@ -57,6 +58,8 @@ def create_job(
     db.commit()
     db.refresh(record)
     cache_delete_prefix('jobs:list:')
+    index_job_to_kb(record, db)
+    db.commit()
     return schemas.JobOut.model_validate(record)
 
 
@@ -82,6 +85,8 @@ def update_job(
     db.commit()
     db.refresh(record)
     cache_delete_prefix('jobs:list:')
+    index_job_to_kb(record, db)
+    db.commit()
     return schemas.JobOut.model_validate(record)
 
 
@@ -100,6 +105,7 @@ def delete_job(
     if current_user.role not in {'company', 'admin'}:
         raise HTTPException(status_code=403, detail='Permission denied')
 
+    remove_job_from_kb(record.id, db)
     db.delete(record)
     db.commit()
     cache_delete_prefix('jobs:list:')

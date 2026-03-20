@@ -29,7 +29,7 @@
             <div>
               <strong>
                 <span class="online-dot" :class="{ active: isOnline(conversation.peerId) }"></span>
-                用户 {{ conversation.peerId }}
+                {{ userName(conversation.peerId) }}
               </strong>
               <p>{{ conversation.lastContent }}</p>
             </div>
@@ -42,7 +42,7 @@
             <div class="history">
               <div class="bubble" v-for="item in currentMessages" :key="item.id">
                 <div class="bubble-head">
-                  <strong>{{ item.sender_id === auth.user.value?.id ? '我' : `用户 ${item.sender_id}` }}</strong>
+                  <strong>{{ item.sender_id === auth.user.value?.id ? '我' : userName(item.sender_id) }}</strong>
                   <span class="mono">{{ formatTime(item.create_time) }}</span>
                 </div>
                 <p>{{ item.content }}</p>
@@ -63,13 +63,35 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { fetchMessages, fetchOnlineUsers, sendMessage } from '../services/api';
+import toast from '../utils/toast';
+import { fetchMessages, fetchOnlineUsers, fetchUsers, sendMessage } from '../services/api';
 import { useAuth } from '../store/auth';
 
 const auth = useAuth();
 const messages = ref([]);
 const activePeerId = ref(null);
 const reply = ref('');
+const userNames = ref({});
+
+async function loadUserNames() {
+  try {
+    const users = await fetchUsers();
+    const map = {};
+    for (const u of users) {
+      map[u.id] = u.name || u.email;
+    }
+    userNames.value = map;
+  } catch (e) {
+    // Non-admin may not have access to user list — build from messages
+    const map = {};
+    map[auth.user.value?.id] = auth.user.value?.name || '我';
+    userNames.value = map;
+  }
+}
+
+function userName(id) {
+  return userNames.value[id] || `用户 ${id}`;
+}
 const socket = ref(null);
 const onlineUsers = ref([]);
 const newPeerId = ref('');
@@ -99,17 +121,18 @@ function startNewChat() {
 const conversations = computed(() => {
   const map = new Map();
   const currentUserId = auth.user.value?.id;
-  for (const item of messages.value) {
+  // Messages come sorted by id desc from API, so iterate in reverse to get chronological order
+  const sorted = [...messages.value].sort((a, b) => (a.id || 0) - (b.id || 0));
+  for (const item of sorted) {
     const peerId = item.sender_id === currentUserId ? item.receiver_id : item.sender_id;
-    if (!map.has(peerId)) {
-      map.set(peerId, {
-        peerId,
-        lastContent: item.content,
-        lastTime: item.create_time
-      });
-    }
+    // Always overwrite so the last (newest) message wins
+    map.set(peerId, {
+      peerId,
+      lastContent: item.content,
+      lastTime: item.create_time
+    });
   }
-  return Array.from(map.values());
+  return Array.from(map.values()).reverse();
 });
 
 const currentMessages = computed(() => {
@@ -144,19 +167,22 @@ async function sendReply() {
   if (!reply.value || !activePeerId.value) return;
   const text = reply.value;
   try {
-    await sendMessage({
-      sender_id: auth.user.value?.id || 0,
-      receiver_id: activePeerId.value,
-      content: text,
-      message_type: 'text'
-    });
     if (socket.value && socket.value.readyState === WebSocket.OPEN) {
+      // WebSocket handler persists to DB and pushes to receiver in real-time
       socket.value.send(`to:${activePeerId.value}:${text}`);
+    } else {
+      // Fallback: use HTTP API when WebSocket is disconnected
+      await sendMessage({
+        sender_id: auth.user.value?.id || 0,
+        receiver_id: activePeerId.value,
+        content: text,
+        message_type: 'text'
+      });
     }
     reply.value = '';
     await loadMessages();
   } catch (err) {
-    // ignore
+    toast.error('发送失败，请重试');
   }
 }
 
@@ -175,6 +201,10 @@ function connectSocket() {
       loadMessages();
     }
   };
+  ws.onerror = () => {
+    console.warn('WebSocket connection error');
+    socket.value = null;
+  };
   ws.onclose = () => {
     socket.value = null;
   };
@@ -182,6 +212,7 @@ function connectSocket() {
 }
 
 onMounted(async () => {
+  await loadUserNames();
   await loadMessages();
   await loadOnlineUsers();
   onlineTimer = setInterval(loadOnlineUsers, 10000);

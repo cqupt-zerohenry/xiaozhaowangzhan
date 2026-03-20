@@ -17,10 +17,12 @@
             class="nav-link"
           >
             {{ item.label }}
+            <span v-if="item.badge" class="nav-badge">{{ item.badge }}</span>
           </RouterLink>
         </nav>
         <div class="nav-actions">
           <span class="tag mono">{{ roleLabel }}</span>
+          <RouterLink v-if="isAuthed" to="/profile" class="nav-user" v-show="role === 'student'">{{ auth.user.value?.name || '我的' }}</RouterLink>
           <button v-if="showLogin" class="btn btn-outline" @click="goLogin">登录</button>
           <button v-else-if="isAuthed" class="btn btn-outline" @click="logoutAndGo">退出</button>
         </div>
@@ -30,6 +32,8 @@
     <main class="page">
       <RouterView />
     </main>
+
+    <JobAssistantBall />
 
     <footer class="footer">
       <div class="container footer-inner">
@@ -49,6 +53,7 @@
 <script setup>
 import { computed, onMounted, onBeforeUnmount, ref } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
+import JobAssistantBall from "./components/JobAssistantBall.vue";
 import { useAuth } from "./store/auth";
 import { fetchUnreadCount } from "./services/api";
 
@@ -91,12 +96,14 @@ const navItems = computed(() => {
       { label: "首页", path: "/" }
     ];
   }
+  const msgBadge = unreadCount.value > 0 ? (unreadCount.value > 99 ? '99+' : unreadCount.value) : null;
   if (role.value === "student") {
     return [
       { label: "工作台", path: "/dashboard" },
       { label: "职位", path: "/jobs" },
+      { label: "收藏", path: "/favorites" },
       { label: "AI 助手", path: "/ai" },
-      { label: unreadCount.value > 0 ? `消息 (${unreadCount.value})` : "消息", path: "/messages" },
+      { label: "消息", path: "/messages", badge: msgBadge },
       { label: "我的", path: "/profile" }
     ];
   }
@@ -106,14 +113,14 @@ const navItems = computed(() => {
       { label: "职位管理", path: "/jobs" },
       { label: "企业中心", path: "/company-center" },
       { label: "AI 助手", path: "/ai" },
-      { label: unreadCount.value > 0 ? `消息 (${unreadCount.value})` : "消息", path: "/messages" }
+      { label: "消息", path: "/messages", badge: msgBadge }
     ];
   }
   return [
     { label: "工作台", path: "/dashboard" },
     { label: "企业审核", path: "/companies" },
     { label: "管理中心", path: "/admin-center" },
-    { label: unreadCount.value > 0 ? `消息 (${unreadCount.value})` : "消息", path: "/messages" }
+    { label: "消息", path: "/messages", badge: msgBadge }
   ];
 });
 
@@ -187,9 +194,38 @@ function logoutAndGo() {
   border-radius: 999px;
 }
 
+.nav-link {
+  position: relative;
+}
+
 .nav-link.router-link-active {
   background: rgba(24, 160, 88, 0.12);
   color: var(--accent-dark);
+}
+
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: #e53e3e;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: 4px;
+  line-height: 1;
+}
+
+.nav-user {
+  font-weight: 600;
+  color: var(--accent-dark);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(24, 160, 88, 0.08);
+  font-size: 13px;
 }
 
 .nav-actions {

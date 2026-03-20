@@ -11,6 +11,7 @@ import ProfilePage from "./pages/ProfilePage.vue";
 import CompanyCenterPage from "./pages/CompanyCenterPage.vue";
 import AdminCenterPage from "./pages/AdminCenterPage.vue";
 import JobDetailPage from "./pages/JobDetailPage.vue";
+import FavoritesPage from "./pages/FavoritesPage.vue";
 import { useAuth } from "./store/auth";
 
 const router = createRouter({
@@ -26,7 +27,8 @@ const router = createRouter({
     { path: "/company-center", name: "company-center", component: CompanyCenterPage, meta: { roles: ["company"] } },
     { path: "/ai", name: "ai", component: AiPage, meta: { roles: ["student", "company", "admin"] } },
     { path: "/messages", name: "messages", component: MessagesPage, meta: { roles: ["student", "company", "admin"] } },
-    { path: "/profile", name: "profile", component: ProfilePage, meta: { roles: ["student"] } }
+    { path: "/profile", name: "profile", component: ProfilePage, meta: { roles: ["student"] } },
+    { path: "/favorites", name: "favorites", component: FavoritesPage, meta: { roles: ["student"] } }
   ],
   scrollBehavior() {
     return { top: 0 };

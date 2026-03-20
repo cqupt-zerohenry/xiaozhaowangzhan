@@ -118,6 +118,7 @@ import {
 } from '../services/api';
 import { useAuth } from '../store/auth';
 
+import toast from '../utils/toast';
 const route = useRoute();
 const router = useRouter();
 const auth = useAuth();
@@ -177,7 +178,7 @@ async function toggleFavorite() {
 
 async function applyJob() {
   if (resumes.value.length === 0) {
-    alert('请先在个人中心创建简历');
+    toast.warn('请先在个人中心创建简历');
     return;
   }
   try {
@@ -187,9 +188,9 @@ async function applyJob() {
       resume_id: resumes.value[0].id,
       status: 'submitted'
     });
-    alert('投递成功');
+    toast.success('投递成功');
   } catch (e) {
-    alert('投递失败，可能已投递过');
+    toast.error('投递失败，可能已投递过');
   }
 }
 

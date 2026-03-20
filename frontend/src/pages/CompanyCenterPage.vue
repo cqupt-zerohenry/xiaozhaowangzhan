@@ -124,6 +124,7 @@ import {
   uploadFile
 } from "../services/api";
 import { useAuth } from "../store/auth";
+import toast from '../utils/toast';
 
 const auth = useAuth();
 const company = ref({
@@ -194,8 +195,9 @@ async function saveProfile() {
   try {
     await updateCompany(company.value.user_id, company.value);
     await loadCompany();
+    toast.success('资料已保存');
   } catch (err) {
-    // ignore
+    toast.error('保存失败，请重试');
   }
 }
 
@@ -204,8 +206,9 @@ async function submitCertification() {
   try {
     await submitCompanyCertification(company.value.user_id);
     await loadCompany();
+    toast.success('认证申请已提交');
   } catch (err) {
-    // ignore
+    toast.error('提交失败，请重试');
   }
 }
 
@@ -230,7 +233,7 @@ async function uploadLicense(event) {
     company.value.license_url = result.file_url;
     await saveProfile();
   } catch (e) {
-    alert('上传失败');
+    toast.error('上传失败');
   }
 }
 
@@ -242,7 +245,7 @@ async function uploadPromoImage(event) {
     company.value.promo_image_url = result.file_url;
     await saveProfile();
   } catch (e) {
-    alert('上传失败');
+    toast.error('上传失败');
   }
 }
 

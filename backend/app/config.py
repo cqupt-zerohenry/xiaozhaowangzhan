@@ -18,5 +18,16 @@ class Settings(BaseSettings):
     jwt_algorithm: str = 'HS256'
     jwt_expire_minutes: int = 60 * 24
 
+    # RAG settings
+    rag_chunk_size: int = 400
+    rag_chunk_overlap: int = 80
+    rag_top_k: int = 5
+    embedding_model: str = 'paraphrase-multilingual-MiniLM-L12-v2'
+
+    # LLM API (OpenAI-compatible)
+    llm_api_key: str = ''
+    llm_base_url: str = 'https://api.openai.com/v1'
+    llm_model: str = 'gpt-3.5-turbo'
+
 
 settings = Settings()
