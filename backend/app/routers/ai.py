@@ -5,7 +5,7 @@ import math
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import schemas
@@ -65,6 +65,160 @@ def extract_keywords(text: str, limit: int = 5) -> list[str]:
         result.append(normalized)
         if len(result) >= limit:
             break
+    return result
+
+
+def _compute_screening_dimensions(
+    candidate_skills: list[str],
+    candidate_summary: str,
+    candidate_experience: str,
+    job_title: str,
+    scoring_rules: str,
+) -> list[schemas.DimensionScore]:
+    """Compute multi-dimensional scores for screening interview (rule-based).
+
+    Dimensions:
+      - 技术匹配度: skill overlap with job requirements
+      - 项目经验: experience length and keyword richness
+      - 表达能力: summary quality (length, structure)
+      - 岗位相关性: candidate skills alignment with job type
+      - 综合潜力: weighted average
+    """
+    job_keywords = set(extract_keywords(job_title + ' ' + (scoring_rules or ''), limit=15))
+    job_kw_lower = {k.lower() for k in job_keywords}
+    cand_skill_lower = {s.lower().strip() for s in candidate_skills if s.strip()}
+
+    # --- 技术匹配度 ---
+    overlap_count = len(cand_skill_lower & job_kw_lower)
+    if job_kw_lower:
+        tech_match = min(100, int((overlap_count / len(job_kw_lower)) * 80) + min(20, len(cand_skill_lower) * 3))
+    else:
+        tech_match = min(100, len(cand_skill_lower) * 12) if cand_skill_lower else 20
+    tech_comment = f'候选人技能与岗位关键词重合{overlap_count}项'
+
+    # --- 项目经验 ---
+    exp_len = len(candidate_experience)
+    exp_keywords = extract_keywords(candidate_experience, limit=15)
+    project_indicators = ['项目', '开发', '实现', '负责', '设计', '搭建', '优化', 'project', 'develop', 'implement']
+    proj_mention = sum(1 for w in project_indicators if w in candidate_experience.lower())
+    exp_score = min(100, (40 if exp_len >= 300 else 30 if exp_len >= 150 else 20 if exp_len >= 50 else 5)
+                    + min(30, len(exp_keywords) * 3)
+                    + min(30, proj_mention * 6))
+    exp_comment = f'经历描述{exp_len}字，提取{len(exp_keywords)}个关键词'
+
+    # --- 表达能力 ---
+    sum_len = len(candidate_summary)
+    has_structure = any(ch in candidate_summary for ch in ['，', '；', '。', '\n', ',', ';', '.'])
+    expr_score = min(100, (35 if sum_len >= 200 else 25 if sum_len >= 100 else 15 if sum_len >= 30 else 5)
+                     + (15 if has_structure else 0)
+                     + min(25, sum_len // 10)
+                     + min(25, len(extract_keywords(candidate_summary, limit=10)) * 4))
+    expr_comment = f'自我概述{sum_len}字' + ('，结构清晰' if has_structure and sum_len >= 60 else '，建议丰富表达')
+
+    # --- 岗位相关性 ---
+    job_type_keywords = set(extract_keywords(job_title, limit=10))
+    jt_lower = {k.lower() for k in job_type_keywords}
+    all_text = (candidate_summary + ' ' + candidate_experience + ' ' + ' '.join(candidate_skills)).lower()
+    jt_hits = sum(1 for k in jt_lower if k in all_text)
+    relevance = min(100, int((jt_hits / max(1, len(jt_lower))) * 70) + min(30, len(candidate_skills) * 4))
+    rel_comment = f'岗位关键词命中{jt_hits}/{len(jt_lower)}项'
+
+    # --- 综合潜力 (weighted average) ---
+    potential = int(tech_match * 0.3 + exp_score * 0.25 + expr_score * 0.2 + relevance * 0.25)
+    potential = max(0, min(100, potential))
+    pot_comment = '各维度加权综合评估'
+
+    dims = [
+        ('技术匹配度', tech_match, tech_comment),
+        ('项目经验', exp_score, exp_comment),
+        ('表达能力', expr_score, expr_comment),
+        ('岗位相关性', relevance, rel_comment),
+        ('综合潜力', potential, pot_comment),
+    ]
+
+    # Try LLM for richer comments, fallback to rule-based
+    llm_comments = llm_service.generate_dimension_comments(
+        [{'dimension': d[0], 'score': d[1]} for d in dims],
+        f'企业初筛面试，岗位：{job_title}',
+    )
+    result: list[schemas.DimensionScore] = []
+    for name, sc, default_comment in dims:
+        comment = (llm_comments or {}).get(name, default_comment)
+        result.append(schemas.DimensionScore(dimension=name, score=sc, comment=comment))
+    return result
+
+
+def _compute_mock_dimensions(
+    learning_content: str,
+    focus_points: list[str],
+    job_title: str,
+) -> list[schemas.DimensionScore]:
+    """Compute multi-dimensional scores for student mock upload (rule-based).
+
+    Dimensions:
+      - 知识覆盖度: how much learning content covers focus points
+      - 技术深度: content length and keyword density
+      - 实践经验: mentions of projects, tools, practical work
+      - 学习系统性: content structure and organization
+      - 面试准备度: overall readiness
+    """
+    content_lower = learning_content.lower()
+    content_len = len(learning_content)
+    content_keywords = extract_keywords(learning_content, limit=30)
+
+    # --- 知识覆盖度 ---
+    focus_hits = sum(1 for fp in focus_points if fp.lower() in content_lower)
+    coverage = min(100, int((focus_hits / max(1, len(focus_points))) * 70) + min(30, len(content_keywords) * 2))
+    cov_comment = f'学习重点覆盖{focus_hits}/{len(focus_points)}项'
+
+    # --- 技术深度 ---
+    tech_terms = ['算法', '架构', '原理', '底层', '源码', '复杂度', 'algorithm', 'architecture',
+                  'framework', 'design pattern', '设计模式', '并发', '分布式', 'distributed']
+    depth_hits = sum(1 for t in tech_terms if t in content_lower)
+    depth = min(100, (35 if content_len >= 500 else 25 if content_len >= 200 else 15 if content_len >= 80 else 5)
+                + min(35, depth_hits * 7)
+                + min(30, len(content_keywords) * 2))
+    depth_comment = f'内容{content_len}字，技术术语{depth_hits}处'
+
+    # --- 实践经验 ---
+    practice_terms = ['项目', '实习', '开发', '实现', '部署', '上线', '工具', 'git', 'docker',
+                      'linux', '数据库', 'mysql', 'redis', '测试', 'debug', '调试', 'api']
+    prac_hits = sum(1 for t in practice_terms if t in content_lower)
+    practice = min(100, min(60, prac_hits * 8) + (20 if content_len >= 200 else 10) + min(20, len(content_keywords)))
+    prac_comment = f'实践相关关键词{prac_hits}处' + ('，实操经验丰富' if prac_hits >= 5 else '')
+
+    # --- 学习系统性 ---
+    structure_indicators = ['\n', '一、', '二、', '三、', '1.', '2.', '3.', '第一', '第二',
+                            '首先', '其次', '最后', '总结', '小结', '## ', '### ']
+    struct_hits = sum(1 for s in structure_indicators if s in learning_content)
+    paragraphs = [p.strip() for p in learning_content.split('\n') if p.strip()]
+    systematic = min(100, min(40, struct_hits * 6)
+                     + min(30, len(paragraphs) * 3)
+                     + (30 if content_len >= 300 else 15 if content_len >= 100 else 5))
+    sys_comment = f'内容含{len(paragraphs)}个段落' + ('，组织有条理' if struct_hits >= 3 else '，建议增加结构化表达')
+
+    # --- 面试准备度 (overall readiness) ---
+    readiness = int(coverage * 0.25 + depth * 0.25 + practice * 0.2 + systematic * 0.3)
+    readiness = max(0, min(100, readiness))
+    rdy_comment = '综合面试准备评估'
+
+    dims = [
+        ('知识覆盖度', coverage, cov_comment),
+        ('技术深度', depth, depth_comment),
+        ('实践经验', practice, prac_comment),
+        ('学习系统性', systematic, sys_comment),
+        ('面试准备度', readiness, rdy_comment),
+    ]
+
+    # Try LLM for richer comments, fallback to rule-based
+    llm_comments = llm_service.generate_dimension_comments(
+        [{'dimension': d[0], 'score': d[1]} for d in dims],
+        f'学生模拟面试，目标岗位：{job_title}',
+    )
+    result: list[schemas.DimensionScore] = []
+    for name, sc, default_comment in dims:
+        comment = (llm_comments or {}).get(name, default_comment)
+        result.append(schemas.DimensionScore(dimension=name, score=sc, comment=comment))
     return result
 
 
@@ -155,19 +309,38 @@ def build_user_job_map(
     views: list | None = None,
     favorites: list | None = None,
 ) -> dict[int, dict[int, float]]:
-    """Build user-job weighted interaction matrix.
+    """Build user-job weighted interaction matrix using behaviour weight feedback.
 
-    Weights: application=1.0, favorite=0.6, view=0.3 (diminishing implicit signals).
+    Behaviour weights:
+      - ViewHistory: 0.2
+      - Favorite: 0.5
+      - Application (submitted): 0.8
+      - Application (accepted / to_contact): 1.5
+      - Application (rejected): -0.3
+    Multiple signals for the same (user, job) pair are summed.
     """
+    # Behaviour weight constants
+    _APP_STATUS_WEIGHT: dict[str, float] = {
+        'accepted': 1.5,
+        'to_contact': 1.5,
+        'rejected': -0.3,
+    }
+    _APP_DEFAULT_WEIGHT = 0.8  # submitted / other statuses
+    _FAV_WEIGHT = 0.5
+    _VIEW_WEIGHT = 0.2
+
     matrix: dict[int, dict[int, float]] = {}
+
     for app in applications:
+        w = _APP_STATUS_WEIGHT.get(app.status, _APP_DEFAULT_WEIGHT)
         matrix.setdefault(app.student_id, {})
-        matrix[app.student_id][app.job_id] = 1.0
+        matrix[app.student_id][app.job_id] = matrix[app.student_id].get(app.job_id, 0.0) + w
+
     if favorites:
         for fav in favorites:
             matrix.setdefault(fav.user_id, {})
-            if fav.job_id not in matrix[fav.user_id]:
-                matrix[fav.user_id][fav.job_id] = 0.6
+            matrix[fav.user_id][fav.job_id] = matrix[fav.user_id].get(fav.job_id, 0.0) + _FAV_WEIGHT
+
     if views:
         seen: set[tuple[int, int]] = set()
         for v in views:
@@ -176,8 +349,8 @@ def build_user_job_map(
                 continue
             seen.add(key)
             matrix.setdefault(v.user_id, {})
-            if v.job_id not in matrix[v.user_id]:
-                matrix[v.user_id][v.job_id] = 0.3
+            matrix[v.user_id][v.job_id] = matrix[v.user_id].get(v.job_id, 0.0) + _VIEW_WEIGHT
+
     return matrix
 
 
@@ -196,21 +369,68 @@ def cosine_similarity_weighted(a: dict[int, float], b: dict[int, float]) -> floa
     return dot / (norm_a * norm_b)
 
 
+def _find_similar_users_by_skills(
+    target_skills: set[str],
+    all_profiles: dict[int, list[str]],
+    target_student_id: int | None,
+    min_common: int = 2,
+) -> dict[int, int]:
+    """Return {user_id: common_skill_count} for users sharing >= min_common skills."""
+    similar: dict[int, int] = {}
+    if not target_skills:
+        return similar
+    target_lower = {s.lower() for s in target_skills}
+    for uid, skills in all_profiles.items():
+        if uid == target_student_id:
+            continue
+        common = sum(1 for s in skills if s.lower() in target_lower)
+        if common >= min_common:
+            similar[uid] = common
+    return similar
+
+
 def compute_collaborative_scores(
     applications: list,
     jobs: list[Job],
     target_student_id: int | None,
     views: list | None = None,
     favorites: list | None = None,
-) -> dict[int, int]:
-    """Compute collaborative filtering scores using weighted implicit + explicit signals."""
+    similar_users: dict[int, int] | None = None,
+) -> tuple[dict[int, int], dict[int, int]]:
+    """Compute collaborative filtering scores using skill-based similar users.
+
+    Returns (scores_dict, collab_signal_count) where collab_signal_count tracks
+    how many similar-user interactions each job received (for explanation).
+    """
     scores: dict[int, float] = {job.id: 0.0 for job in jobs}
+    signal_count: dict[int, int] = {job.id: 0 for job in jobs}
+
     if not applications and not views and not favorites:
-        return {job.id: 0 for job in jobs}
+        return {job.id: 0 for job in jobs}, signal_count
 
     user_job_map = build_user_job_map(applications, views, favorites)
 
-    if target_student_id and target_student_id in user_job_map:
+    if target_student_id and similar_users:
+        target_prefs = user_job_map.get(target_student_id, {})
+        for uid, common_count in similar_users.items():
+            prefs = user_job_map.get(uid)
+            if not prefs:
+                continue
+            # Similarity boost proportional to shared skill count
+            skill_sim = common_count / max(common_count + 2, 1)  # dampen
+            if target_prefs:
+                behaviour_sim = cosine_similarity_weighted(target_prefs, prefs)
+                sim = 0.5 * skill_sim + 0.5 * behaviour_sim
+            else:
+                sim = skill_sim
+            if sim <= 0:
+                continue
+            for job_id, weight in prefs.items():
+                if job_id not in target_prefs:
+                    scores[job_id] = scores.get(job_id, 0.0) + sim * weight * 100
+                    signal_count[job_id] = signal_count.get(job_id, 0) + 1
+    elif target_student_id and target_student_id in user_job_map:
+        # Fallback: behaviour-only collaborative filtering
         target_prefs = user_job_map[target_student_id]
         for student_id, prefs in user_job_map.items():
             if student_id == target_student_id:
@@ -220,7 +440,8 @@ def compute_collaborative_scores(
                 continue
             for job_id, weight in prefs.items():
                 if job_id not in target_prefs:
-                    scores[job_id] += sim * weight * 100
+                    scores[job_id] = scores.get(job_id, 0.0) + sim * weight * 100
+                    signal_count[job_id] = signal_count.get(job_id, 0) + 1
     else:
         # Cold start fallback: global popularity
         counts: dict[int, float] = {}
@@ -230,12 +451,13 @@ def compute_collaborative_scores(
             for fav in favorites:
                 counts[fav.job_id] = counts.get(fav.job_id, 0) + 0.6
         max_count = max(counts.values()) if counts else 1
-        return {job_id: int((count / max_count) * 100) for job_id, count in counts.items()}
+        pop_scores = {job_id: int((count / max_count) * 100) for job_id, count in counts.items()}
+        return pop_scores, signal_count
 
     max_score = max(scores.values()) if scores else 0
     if max_score <= 0:
-        return {job.id: 0 for job in jobs}
-    return {job_id: int((score / max_score) * 100) for job_id, score in scores.items()}
+        return {job.id: 0 for job in jobs}, signal_count
+    return {job_id: int((score / max_score) * 100) for job_id, score in scores.items()}, signal_count
 
 
 # ---------------------------------------------------------------------------
@@ -331,6 +553,24 @@ def delete_knowledge_base(
     db.delete(kb)
     db.commit()
     return {'status': 'deleted'}
+
+
+@router.put('/knowledge-bases/{kb_id}', response_model=schemas.KnowledgeBaseOut)
+def update_knowledge_base(
+    kb_id: int,
+    payload: schemas.KnowledgeBaseCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> schemas.KnowledgeBaseOut:
+    kb = db.get(KnowledgeBase, kb_id)
+    if not kb:
+        raise HTTPException(status_code=404, detail='Knowledge base not found')
+    _ensure_kb_owner(kb, current_user)
+    kb.name = payload.name
+    kb.description = payload.description
+    db.commit()
+    db.refresh(kb)
+    return schemas.KnowledgeBaseOut.model_validate(kb)
 
 
 @router.post('/knowledge-bases/{kb_id}/documents', response_model=schemas.KnowledgeDocumentOut)
@@ -803,6 +1043,15 @@ def screening_interview(
             f'综合得分 {score} 分。{recommendation}。'
         )
 
+    # --- Multi-dimensional scoring ---
+    dimension_scores = _compute_screening_dimensions(
+        candidate_skills=candidate_skills,
+        candidate_summary=summary,
+        candidate_experience=experience,
+        job_title=template.job_title,
+        scoring_rules=template.scoring_rules or '',
+    )
+
     session = AIInterviewSession(
         template_id=template.id,
         company_id=template.company_id,
@@ -815,6 +1064,7 @@ def screening_interview(
             'recommendation': recommendation,
             'focus_areas': focus_areas,
             'candidate_skills': candidate_skills,
+            'dimension_scores': [ds.model_dump() for ds in dimension_scores],
         },
     )
     db.add(session)
@@ -829,6 +1079,7 @@ def screening_interview(
         score=score,
         recommendation=recommendation,
         focus_areas=focus_areas,
+        dimension_scores=dimension_scores,
     )
 
 
@@ -927,6 +1178,13 @@ def student_mock_upload(
         feedback_parts.append('整体掌握较好，建议专项突破。' if score >= 80 else '基础尚可，加强量化表达。' if score >= 60 else '建议补充学习后重新模拟。')
         feedback = ''.join(feedback_parts)
 
+    # --- Multi-dimensional scoring ---
+    dimension_scores = _compute_mock_dimensions(
+        learning_content=content,
+        focus_points=focus_points,
+        job_title=payload.job_title,
+    )
+
     student_id = current_user.id if current_user.role == 'student' else None
     session = AIInterviewSession(
         template_id=None,
@@ -942,6 +1200,7 @@ def student_mock_upload(
             'improvements': improvements,
             'next_actions': next_actions,
             'focus_points': focus_points,
+            'dimension_scores': [ds.model_dump() for ds in dimension_scores],
         },
     )
     db.add(session)
@@ -955,6 +1214,7 @@ def student_mock_upload(
         strengths=strengths,
         improvements=improvements,
         next_actions=next_actions,
+        dimension_scores=dimension_scores,
     )
 
 
@@ -980,6 +1240,37 @@ def list_interview_sessions(
     return [schemas.AIInterviewSessionOut.model_validate(item) for item in rows]
 
 
+def _count_user_interactions(db: Session, student_id: int) -> int:
+    """Count total interactions (views + favorites + applications) for cold start detection."""
+    view_count = db.scalar(
+        select(func.count()).select_from(ViewHistory).where(ViewHistory.user_id == student_id)
+    ) or 0
+    fav_count = db.scalar(
+        select(func.count()).select_from(Favorite).where(Favorite.user_id == student_id)
+    ) or 0
+    app_count = db.scalar(
+        select(func.count()).select_from(Application).where(Application.student_id == student_id)
+    ) or 0
+    return view_count + fav_count + app_count
+
+
+def _cold_start_weights(interaction_count: int, rec_config) -> tuple[float, float, str]:
+    """Determine collaborative / content weights based on cold start strategy.
+
+    Returns (collab_weight, content_weight, cold_start_label).
+    """
+    if interaction_count < 3:
+        return 0.05, 0.95, '冷启动(极少交互<3)'
+    elif interaction_count < 10:
+        return 0.20, 0.80, '冷启动(少量交互<10)'
+    elif interaction_count < 30:
+        return 0.40, 0.60, '预热阶段(交互<30)'
+    else:
+        collab_w = rec_config.collaborative_weight if rec_config else 0.4
+        content_w = rec_config.content_weight if rec_config else 0.6
+        return collab_w, content_w, '正常推荐'
+
+
 @router.post('/job-recommend', response_model=schemas.JobRecommendResponse)
 def job_recommend(
     payload: schemas.JobMatchRequest,
@@ -997,14 +1288,29 @@ def job_recommend(
     applications = db.scalars(select(Application)).all()
     views = db.scalars(select(ViewHistory)).all()
     favorites = db.scalars(select(Favorite)).all()
-    collab_scores = compute_collaborative_scores(
+
+    # --- Feature 3: Build skill-based similar user set ---
+    similar_users: dict[int, int] | None = None
+    if payload.student_id and skills:
+        all_profiles_rows = db.scalars(select(StudentProfile)).all()
+        all_profiles = {p.user_id: (p.skills or []) for p in all_profiles_rows}
+        similar_users = _find_similar_users_by_skills(
+            set(skills), all_profiles, payload.student_id, min_common=2,
+        )
+
+    collab_scores, collab_signal_counts = compute_collaborative_scores(
         applications, jobs, payload.student_id,
         views=views, favorites=favorites,
+        similar_users=similar_users,
     )
 
+    # --- Feature 2: Cold start weight adjustment ---
     rec_config = db.scalar(select(RecommendConfig).order_by(RecommendConfig.id.desc()))
-    collab_w = rec_config.collaborative_weight if rec_config else 0.4
-    content_w = rec_config.content_weight if rec_config else 0.6
+    if payload.student_id:
+        interaction_count = _count_user_interactions(db, payload.student_id)
+    else:
+        interaction_count = 0
+    collab_w, content_w, cold_start_label = _cold_start_weights(interaction_count, rec_config)
 
     results: list[schemas.JobRecommendResult] = []
 
@@ -1013,7 +1319,6 @@ def job_recommend(
 
     for job in jobs:
         job_skills = job.skill_tags or []
-        job_skills_lower = {s.lower() for s in job_skills}
         matched = [s for s in job_skills if s.lower() in skills_lower]
         missing = [s for s in job_skills if s.lower() not in skills_lower]
 
@@ -1021,22 +1326,34 @@ def job_recommend(
         skill_score = int((len(matched) / max(len(job_skills), 1)) * 50)
 
         city_bonus = 0
+        city_matched = False
         if intention and intention.expected_city:
-            city_bonus = 20 if intention.expected_city in (job.city or '') or (job.city or '') in intention.expected_city else 0
+            if intention.expected_city in (job.city or '') or (job.city or '') in intention.expected_city:
+                city_bonus = 20
+                city_matched = True
 
         industry_bonus = 0
+        industry_matched = False
         company = db.get(CompanyProfile, job.company_id)
         if intention and company and intention.expected_industry:
-            industry_bonus = 15 if company.industry == intention.expected_industry else 0
+            if company.industry == intention.expected_industry:
+                industry_bonus = 15
+                industry_matched = True
 
         salary_bonus = 0
+        salary_matched = False
+        salary_detail = ''
         if intention and intention.expected_salary:
             try:
                 expected = int(re.sub(r'[^\d]', '', intention.expected_salary) or '0')
                 if expected and job.salary_min <= expected <= job.salary_max:
                     salary_bonus = 15
+                    salary_matched = True
+                    salary_detail = f'期望{expected}元在{job.salary_min}-{job.salary_max}范围内'
                 elif expected and job.salary_max >= expected:
                     salary_bonus = 8
+                    salary_matched = True
+                    salary_detail = f'薪资上限{job.salary_max}>=期望{expected}'
             except (ValueError, TypeError):
                 pass
 
@@ -1044,17 +1361,30 @@ def job_recommend(
         collaborative_score = collab_scores.get(job.id, 0)
         final_score = int(collab_w * collaborative_score + content_w * content_score)
 
-        # Build explainable reason
-        reasons = []
+        # --- Feature 1: Enhanced Recommendation Explanation ---
+        reasons: list[str] = []
         if matched:
-            reasons.append(f'技能匹配 {len(matched)}/{len(job_skills)}')
-        if city_bonus:
-            reasons.append('城市匹配')
-        if industry_bonus:
-            reasons.append('行业匹配')
-        if salary_bonus:
-            reasons.append('薪资范围匹配')
-        reason = '、'.join(reasons) + f'，综合得分 {final_score}' if reasons else f'综合得分 {final_score}'
+            reasons.append(f'匹配技能 {len(matched)}/{len(job_skills)}({", ".join(matched[:5])})')
+        elif job_skills:
+            reasons.append(f'技能匹配 0/{len(job_skills)}')
+
+        if city_matched:
+            reasons.append(f'城市偏好匹配(期望{intention.expected_city}=职位{job.city})')
+        if industry_matched:
+            reasons.append(f'行业偏好匹配(期望{intention.expected_industry}={company.industry})')
+        if salary_matched:
+            reasons.append(f'薪资匹配({salary_detail})')
+
+        job_collab_count = collab_signal_counts.get(job.id, 0)
+        if job_collab_count > 0:
+            reasons.append(f'协同信号({job_collab_count}位相似用户对该职位有交互)')
+
+        # Cold start info embedded in reason
+        reason_parts = '；'.join(reasons) if reasons else '暂无明显匹配项'
+        reason = (
+            f'[{cold_start_label}|权重:内容{content_w:.0%}+协同{collab_w:.0%}|交互数{interaction_count}] '
+            f'{reason_parts}，综合得分 {final_score}'
+        )
 
         results.append(
             schemas.JobRecommendResult(

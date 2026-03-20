@@ -123,8 +123,11 @@
                 <template v-if="role === 'company'">
                   <select v-model="applicationStatusDraft[item.id]">
                     <option value="submitted">已投递</option>
+                    <option value="viewed">已查看</option>
                     <option value="reviewing">筛选中</option>
                     <option value="to_contact">待沟通</option>
+                    <option value="interview_scheduled">面试已安排</option>
+                    <option value="interviewing">面试中</option>
                     <option value="accepted">已通过</option>
                     <option value="rejected">已淘汰</option>
                   </select>
@@ -148,6 +151,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import toast from '../utils/toast';
 import {
   addFavorite,
@@ -166,8 +170,11 @@ import { useAuth } from '../store/auth';
 
 const appSteps = [
   { key: 'submitted', label: '已投递' },
+  { key: 'viewed', label: '已查看' },
   { key: 'reviewing', label: '筛选中' },
   { key: 'to_contact', label: '待沟通' },
+  { key: 'interview_scheduled', label: '面试已安排' },
+  { key: 'interviewing', label: '面试中' },
   { key: 'accepted', label: '已通过' },
 ];
 const stepOrder = appSteps.map(s => s.key);
@@ -214,7 +221,9 @@ async function toggleFavorite(jobId) {
       await addFavorite(jobId);
     }
     await loadFavorites();
-  } catch (e) {}
+  } catch (e) {
+    toast.error('操作失败，请重试');
+  }
 }
 
 const quickCategories = ['后端开发', '前端开发', 'AI算法', '产品经理', '测试', '运维/SRE', '数据分析', '设计'];
@@ -225,6 +234,7 @@ const education = ref('');
 const salaryMin = ref('');
 const sort = ref('');
 
+const router = useRouter();
 const auth = useAuth();
 const role = computed(() => auth.role.value);
 
@@ -338,7 +348,12 @@ async function submitJob() {
     resetJobForm();
     await loadJobs();
   } catch (err) {
-    toast.error('岗位保存失败，请重试');
+    const msg = err.message || '';
+    if (msg.includes('not approved')) {
+      toast.error('企业资质尚未通过审核，暂时无法发布岗位');
+    } else {
+      toast.error('岗位保存失败，请重试');
+    }
   }
 }
 
@@ -356,6 +371,7 @@ async function removeJob(id) {
 async function applyJob(job) {
   if (resumes.value.length === 0) {
     toast.warn('请先在个人中心创建简历');
+    router.push('/profile');
     return;
   }
   try {
@@ -381,15 +397,18 @@ async function updateApplication(applicationId) {
   if (!status) return;
   try {
     await updateApplicationStatus(applicationId, { status });
+    toast.success('状态已更新');
     await loadApplications();
   } catch (err) {
-    // ignore
+    toast.error('状态更新失败');
   }
 }
 
 async function withdrawApplication(applicationId) {
+  if (!confirm('确定要撤回该投递吗？')) return;
   try {
     await updateApplicationStatus(applicationId, { status: 'withdrawn' });
+    toast.success('投递已撤回');
     await loadApplications();
   } catch (err) {
     toast.error('撤回失败，请稍后重试');

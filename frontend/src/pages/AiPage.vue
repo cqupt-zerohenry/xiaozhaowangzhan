@@ -68,6 +68,7 @@
                     <p class="mono">{{ kb.description || '无描述' }}</p>
                   </div>
                   <div class="actions">
+                    <button class="btn btn-outline" @click.stop="renameKB(kb)">改名</button>
                     <button class="btn btn-outline" @click.stop="removeKB(kb.id)">删除</button>
                   </div>
                 </div>
@@ -111,7 +112,6 @@
                 <h2>岗位匹配</h2>
                 <p>输入技能后自动计算匹配度与差距。</p>
               </div>
-              <button class="chip" @click="applyMatchPreset">填充示例</button>
             </div>
             <textarea v-model="matchSkills" rows="3" placeholder="技能，如 Linux, Docker, Kubernetes"></textarea>
             <button class="btn" @click="runRecommend">开始匹配</button>
@@ -128,6 +128,9 @@
                 <p class="mono">协同得分：{{ match.collaborative_score }}%</p>
                 <p class="mono">匹配技能：{{ match.matched_skills.join(', ') || '暂无' }}</p>
                 <p class="mono">缺失技能：{{ match.missing_skills.join(', ') || '暂无' }}</p>
+                <div class="reason-block" v-if="match.reason">
+                  <p class="mono" style="white-space:pre-wrap;font-size:12px;color:var(--muted);margin-top:8px;padding:8px;background:#f8faf9;border-radius:8px">{{ match.reason }}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -265,6 +268,16 @@
               <p>{{ screeningPack.evaluation }}</p>
               <p class="mono">结论：{{ screeningPack.recommendation }}</p>
               <p class="mono">关注点：{{ (screeningPack.focus_areas || []).join('、') }}</p>
+              <div v-if="screeningPack.dimension_scores && screeningPack.dimension_scores.length" class="dimension-grid">
+                <div class="dimension-item" v-for="dim in screeningPack.dimension_scores" :key="dim.dimension">
+                  <div class="dim-header">
+                    <span>{{ dim.dimension }}</span>
+                    <strong>{{ dim.score }}分</strong>
+                  </div>
+                  <div class="progress"><div class="progress-bar" :style="{ width: dim.score + '%' }"></div></div>
+                  <p class="mono" style="font-size:11px">{{ dim.comment }}</p>
+                </div>
+              </div>
               <ul>
                 <li v-for="question in screeningPack.questions" :key="question">{{ question }}</li>
               </ul>
@@ -368,6 +381,16 @@
               <p class="mono">优势：{{ (mockUploadPack.strengths || []).join('；') }}</p>
               <p class="mono">改进：{{ (mockUploadPack.improvements || []).join('；') }}</p>
               <p class="mono">下一步：{{ (mockUploadPack.next_actions || []).join('；') }}</p>
+              <div v-if="mockUploadPack.dimension_scores && mockUploadPack.dimension_scores.length" class="dimension-grid">
+                <div class="dimension-item" v-for="dim in mockUploadPack.dimension_scores" :key="dim.dimension">
+                  <div class="dim-header">
+                    <span>{{ dim.dimension }}</span>
+                    <strong>{{ dim.score }}分</strong>
+                  </div>
+                  <div class="progress"><div class="progress-bar" :style="{ width: dim.score + '%' }"></div></div>
+                  <p class="mono" style="font-size:11px">{{ dim.comment }}</p>
+                </div>
+              </div>
             </div>
 
             <div class="list-wrap">
@@ -419,6 +442,7 @@ import {
   deleteInterviewTemplate,
   deleteKBDocument,
   deleteKnowledgeBase,
+  updateKnowledgeBase,
   fetchInterviewSessions,
   fetchInterviewTemplates,
   fetchKBDocuments,
@@ -471,10 +495,10 @@ watch(
   { immediate: true }
 );
 
-const matchSkills = ref("Linux, Docker, Kubernetes");
-const ragQuestion = ref("成为 SRE 需要学习什么？");
-const interviewRole = ref("后端开发实习生");
-const mockRole = ref("DevOps 工程师");
+const matchSkills = ref("");
+const ragQuestion = ref("");
+const interviewRole = ref("");
+const mockRole = ref("");
 const matchResult = ref(null);
 const ragAnswer = ref(null);
 const interviewPack = ref(null);
@@ -487,7 +511,7 @@ const templateForm = ref({
   id: null,
   name: "",
   job_title: "",
-  question_types_input: "技术基础,项目经验,场景分析",
+  question_types_input: "",
   difficulty: "medium",
   question_count: 5,
   scoring_rules: ""
@@ -501,10 +525,10 @@ const screeningCandidate = ref({
 const screeningPack = ref(null);
 
 const mockUploadForm = ref({
-  job_title: "后端开发实习生",
+  job_title: "",
   learning_content: "",
   learning_focus_input: "",
-  question_types_input: "技术基础,项目经验,场景分析",
+  question_types_input: "",
   difficulty: "medium",
   question_count: 5
 });
@@ -536,10 +560,6 @@ function parseList(text) {
 function formatTime(value) {
   if (!value) return "";
   return String(value).replace("T", " ").slice(0, 16);
-}
-
-function applyMatchPreset() {
-  matchSkills.value = "Linux, Docker, Kubernetes";
 }
 
 async function runRecommend() {
@@ -598,7 +618,7 @@ function resetTemplateForm() {
     id: null,
     name: "",
     job_title: "",
-    question_types_input: "技术基础,项目经验,场景分析",
+    question_types_input: "",
     difficulty: "medium",
     question_count: 5,
     scoring_rules: ""
@@ -648,6 +668,7 @@ async function saveTemplate() {
 }
 
 async function removeTemplate(id) {
+  if (!confirm('确定要删除该面试模板吗？')) return;
   try {
     await deleteInterviewTemplate(id);
     templateStatus.value = "模板已删除";
@@ -689,7 +710,8 @@ function onLearningFileChange(event) {
 }
 
 async function runStudentMockUpload() {
-  if (!mockUploadForm.value.learning_content || mockUploadForm.value.learning_content.length < 10) {
+  mockUploadForm.value.learning_content = (mockUploadForm.value.learning_content || '').trim();
+  if (mockUploadForm.value.learning_content.length < 10) {
     toast.warn('学习内容至少需要 10 个字符');
     return;
   }
@@ -764,7 +786,18 @@ async function createKB() {
   } catch (e) { kbStatus.value = "创建失败"; }
 }
 
+async function renameKB(kb) {
+  const newName = prompt('输入新名称', kb.name);
+  if (!newName || newName === kb.name) return;
+  try {
+    await updateKnowledgeBase(kb.id, { name: newName, description: kb.description });
+    kbStatus.value = '知识库已更名';
+    await loadKnowledgeBases();
+  } catch (e) { kbStatus.value = '更名失败'; }
+}
+
 async function removeKB(kbId) {
+  if (!confirm('确定要删除该知识库吗？相关文档将一并删除。')) return;
   try {
     await deleteKnowledgeBase(kbId);
     if (selectedKbId.value === kbId) { selectedKbId.value = null; kbDocuments.value = []; }
@@ -1035,6 +1068,27 @@ textarea,
 input,
 select {
   width: 100%;
+}
+
+.dimension-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+
+.dimension-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dim-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
 }
 
 @media (max-width: 900px) {

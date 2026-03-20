@@ -169,6 +169,7 @@ async function loadRecommendations() {
     recommendations.value = result.results || [];
   } catch (err) {
     recommendations.value = [];
+    toast.warn('人才推荐加载失败');
   }
 }
 
@@ -187,6 +188,7 @@ async function loadCandidates() {
     candidates.value = await fetchCompanyApplications(candidateFilters.value);
   } catch (err) {
     candidates.value = [];
+    toast.warn('候选人加载失败');
   }
 }
 

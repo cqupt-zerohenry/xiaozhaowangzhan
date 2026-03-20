@@ -23,7 +23,7 @@
               <p class="mono">开放岗位</p>
             </div>
             <div class="metric">
-              <h3>4</h3>
+              <h3>6</h3>
               <p class="mono">AI 模块</p>
             </div>
           </div>
@@ -88,7 +88,7 @@
           <p>快速查看最新岗位动态。</p>
         </div>
         <div class="grid list-grid">
-          <div class="card job-card" v-for="job in topJobs" :key="job.id">
+          <div class="card job-card" v-for="job in topJobs" :key="job.id" @click="go(`/jobs/${job.id}`)" style="cursor:pointer">
             <div>
               <h3>{{ job.job_name }}</h3>
               <p>{{ job.description }}</p>

@@ -213,3 +213,33 @@ def generate_mock_feedback(
             raw = line.split('：', 1)[-1].split(':', 1)[-1].strip()
             result['next_actions'] = [a.strip() for a in raw.replace('，', ',').split(',') if a.strip()]
     return result if result.get('feedback') else None
+
+
+def generate_dimension_comments(
+    dimensions: list[dict],
+    context_description: str,
+) -> dict[str, str] | None:
+    """Use LLM to generate brief comments for each scoring dimension.
+
+    *dimensions* is a list of dicts like ``{"dimension": "...", "score": 80}``.
+    Returns a mapping ``{dimension_name: comment}`` or ``None`` on failure.
+    """
+    sys = (
+        '你是一位专业的面试评估助手。请根据各维度名称和评分，为每个维度写一句简短评语（不超过30字）。'
+        '格式：每行一条，"维度名：评语"。语言使用中文。'
+    )
+    dim_lines = '\n'.join(f'{d["dimension"]}：{d["score"]}分' for d in dimensions)
+    user = f'场景：{context_description}\n\n维度评分：\n{dim_lines}'
+    text = chat(sys, user, temperature=0.5, max_tokens=600)
+    if not text:
+        return None
+    result: dict[str, str] = {}
+    for line in text.strip().splitlines():
+        line = line.strip()
+        if '：' in line or ':' in line:
+            sep = '：' if '：' in line else ':'
+            name, comment = line.split(sep, 1)
+            name = name.strip().lstrip('0123456789.、) -')
+            if name and comment.strip():
+                result[name] = comment.strip()
+    return result if result else None

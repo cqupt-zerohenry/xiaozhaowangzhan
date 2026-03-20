@@ -58,8 +58,10 @@ def create_job(
     db.commit()
     db.refresh(record)
     cache_delete_prefix('jobs:list:')
-    index_job_to_kb(record, db)
-    db.commit()
+    try:
+        index_job_to_kb(record, db)
+    except Exception:
+        pass  # 索引失败不影响岗位创建
     return schemas.JobOut.model_validate(record)
 
 
@@ -79,14 +81,21 @@ def update_job(
     if current_user.role not in {'company', 'admin'}:
         raise HTTPException(status_code=403, detail='Permission denied')
 
+    if current_user.role == 'company':
+        company = db.get(CompanyProfile, current_user.id)
+        if not company or company.status != 'approved':
+            raise HTTPException(status_code=403, detail='Company not approved')
+
     for key, value in payload.model_dump().items():
         setattr(record, key, value)
 
     db.commit()
     db.refresh(record)
     cache_delete_prefix('jobs:list:')
-    index_job_to_kb(record, db)
-    db.commit()
+    try:
+        index_job_to_kb(record, db)
+    except Exception:
+        pass
     return schemas.JobOut.model_validate(record)
 
 
@@ -141,7 +150,7 @@ def list_jobs(
         return [schemas.JobOut.model_validate(item) for item in cached]
 
     query = select(Job)
-    filters = [Job.status != 'deleted']
+    filters = [Job.status == 'active']
 
     if keyword:
         like = f'%{keyword.lower()}%'
@@ -193,11 +202,17 @@ def get_job(
     if not record:
         raise HTTPException(status_code=404, detail='Job not found')
 
-    # Record view history
+    # Record view history (deduplicate per user+job)
     if current_user:
-        view = ViewHistory(user_id=current_user.id, job_id=job_id)
-        db.add(view)
-        db.commit()
+        existing = db.scalar(
+            select(ViewHistory).where(
+                ViewHistory.user_id == current_user.id,
+                ViewHistory.job_id == job_id,
+            )
+        )
+        if not existing:
+            db.add(ViewHistory(user_id=current_user.id, job_id=job_id))
+            db.commit()
 
     return schemas.JobOut.model_validate(record)
 

@@ -61,8 +61,12 @@ async function loadFavJobs() {
       } catch (e) { /* job may have been deleted */ }
     }
     jobs.value = results;
+    if (results.length < favs.length) {
+      toast.warn(`${favs.length - results.length} 个收藏岗位已下架`);
+    }
   } catch (e) {
     jobs.value = [];
+    toast.error('加载收藏失败');
   } finally {
     loading.value = false;
   }

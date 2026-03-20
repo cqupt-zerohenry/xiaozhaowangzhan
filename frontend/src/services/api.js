@@ -458,6 +458,13 @@ export function createKnowledgeBase(payload) {
   });
 }
 
+export function updateKnowledgeBase(kbId, payload) {
+  return request(`/ai/knowledge-bases/${kbId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+}
+
 export function deleteKnowledgeBase(kbId) {
   return request(`/ai/knowledge-bases/${kbId}`, { method: 'DELETE' });
 }
@@ -496,6 +503,14 @@ export function resumeOptimize(payload) {
 
 export function deleteKBDocument(kbId, docId) {
   return request(`/ai/knowledge-bases/${kbId}/documents/${docId}`, { method: 'DELETE' });
+}
+
+export function fetchRecommendEvaluation() {
+  return request('/admin/recommend-evaluation');
+}
+
+export function fetchEmploymentAnalytics() {
+  return request('/admin/employment-analytics');
 }
 
 // AI Job Assistant (floating ball chat)

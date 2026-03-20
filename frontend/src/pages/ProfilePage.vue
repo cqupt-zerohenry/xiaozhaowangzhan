@@ -188,17 +188,17 @@ async function saveAll() {
 async function addResume() {
   if (!userId) return;
   try {
-    const nextVersion = resumes.value.length + 1;
     await createResume(userId, {
       student_id: userId,
       resume_type: "online",
       content_json: { skills: profile.value.skills || [], projects: profile.value.projects || [] },
       file_url: "",
-      version_no: nextVersion
+      version_no: 1
     });
+    toast.success('简历已创建');
     await loadData();
   } catch (err) {
-    // ignore
+    toast.error('创建简历失败');
   }
 }
 
@@ -212,7 +212,7 @@ async function uploadResumePdf(event) {
       resume_type: 'file',
       content_json: null,
       file_url: result.file_url,
-      version_no: resumes.value.length + 1
+      version_no: 1
     });
     await loadData();
   } catch (e) {

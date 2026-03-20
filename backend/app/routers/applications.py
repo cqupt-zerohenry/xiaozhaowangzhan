@@ -11,6 +11,47 @@ from app.models import Application, Job, Message, Resume, StudentProfile, User
 
 router = APIRouter(prefix='/applications', tags=['applications'])
 
+# ---------------------------------------------------------------------------
+# Status transition rules
+# ---------------------------------------------------------------------------
+
+# Valid transitions for company/admin role (current_status -> allowed next statuses)
+_COMPANY_TRANSITIONS: dict[str, set[str]] = {
+    'submitted': {'viewed', 'reviewing', 'rejected'},
+    'viewed': {'reviewing', 'to_contact', 'rejected'},
+    'reviewing': {'to_contact', 'rejected'},
+    'to_contact': {'interview_scheduled', 'rejected'},
+    'interview_scheduled': {'interviewing', 'rejected'},
+    'interviewing': {'accepted', 'rejected'},
+}
+
+# Students can only withdraw, and only from these statuses
+_STUDENT_WITHDRAW_FROM: set[str] = {'submitted', 'viewed', 'reviewing'}
+
+
+def _validate_transition(
+    current_status: str,
+    new_status: str,
+    role: str,
+) -> str | None:
+    """Return an error message if the transition is invalid, or None if OK."""
+    if role == 'student':
+        if new_status != 'withdrawn':
+            return 'Students can only withdraw applications'
+        if current_status not in _STUDENT_WITHDRAW_FROM:
+            return f'Cannot withdraw from status \'{current_status}\''
+        return None
+
+    if role in ('company', 'admin'):
+        allowed = _COMPANY_TRANSITIONS.get(current_status)
+        if allowed is None:
+            return f'No transitions allowed from status \'{current_status}\''
+        if new_status not in allowed:
+            return f'Cannot transition from \'{current_status}\' to \'{new_status}\''
+        return None
+
+    return 'Unknown role'
+
 
 @router.post('', response_model=schemas.Application)
 def create_application(
@@ -27,8 +68,11 @@ def create_application(
         raise HTTPException(status_code=404, detail='Student not found')
     if not db.get(Job, payload.job_id):
         raise HTTPException(status_code=404, detail='Job not found')
-    if not db.get(Resume, payload.resume_id):
+    resume = db.get(Resume, payload.resume_id)
+    if not resume:
         raise HTTPException(status_code=404, detail='Resume not found')
+    if resume.student_id != payload.student_id:
+        raise HTTPException(status_code=403, detail='Resume does not belong to the student')
 
     existed = db.scalar(
         select(Application).where(
@@ -90,30 +134,40 @@ def update_status(
     if not record:
         raise HTTPException(status_code=404, detail='Application not found')
 
+    # --- Ownership check ---
     if current_user.role == 'student':
-        if current_user.id != record.student_id or payload.status not in {'withdrawn'}:
+        if current_user.id != record.student_id:
             raise HTTPException(status_code=403, detail='Permission denied')
     elif current_user.role == 'company':
         job = db.get(Job, record.job_id)
         if not job or job.company_id != current_user.id:
             raise HTTPException(status_code=403, detail='Permission denied')
 
+    # --- Validate status transition ---
+    error = _validate_transition(record.status, payload.status, current_user.role)
+    if error:
+        raise HTTPException(status_code=400, detail=error)
+
     record.status = payload.status
 
     # Auto-send notification message to student
-    if current_user.role in {'company', 'admin'} and payload.status in {'reviewing', 'to_contact', 'accepted', 'rejected'}:
+    _NOTIFY_STATUSES = {'viewed', 'reviewing', 'to_contact', 'interview_scheduled', 'interviewing', 'accepted', 'rejected'}
+    if current_user.role in {'company', 'admin'} and payload.status in _NOTIFY_STATUSES:
         status_labels = {
-            'reviewing': '\u7b5b\u9009\u4e2d',
-            'to_contact': '\u5f85\u6c9f\u901a',
-            'accepted': '\u5df2\u901a\u8fc7',
-            'rejected': '\u5df2\u6dd8\u6c70',
+            'viewed': '已查看',
+            'reviewing': '筛选中',
+            'to_contact': '待沟通',
+            'interview_scheduled': '面试已安排',
+            'interviewing': '面试中',
+            'accepted': '已通过',
+            'rejected': '已淘汰',
         }
         job = db.get(Job, record.job_id)
-        job_name = job.job_name if job else f'\u5c97\u4f4d{record.job_id}'
+        job_name = job.job_name if job else f'岗位{record.job_id}'
         notification = Message(
             sender_id=current_user.id,
             receiver_id=record.student_id,
-            content=f'[\u7cfb\u7edf\u901a\u77e5] \u60a8\u6295\u9012\u7684\u300c{job_name}\u300d\u72b6\u6001\u5df2\u66f4\u65b0\u4e3a\uff1a{status_labels.get(payload.status, payload.status)}',
+            content=f'[系统通知] 您投递的「{job_name}」状态已更新为：{status_labels.get(payload.status, payload.status)}',
             message_type='system',
         )
         db.add(notification)

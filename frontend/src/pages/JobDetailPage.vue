@@ -16,7 +16,15 @@
       </div>
     </section>
 
-    <section>
+    <section v-if="!job.id" class="container" style="padding:40px 0;text-align:center">
+      <div class="card" style="max-width:400px;margin:0 auto">
+        <h3>岗位未找到</h3>
+        <p>该岗位可能已下架或不存在。</p>
+        <button class="btn btn-outline" @click="$router.push('/jobs')" style="margin-top:12px">浏览其他岗位</button>
+      </div>
+    </section>
+
+    <section v-else>
       <div class="container grid detail-grid">
         <div class="card">
           <h3>岗位信息</h3>
@@ -80,7 +88,7 @@
                 <span class="tag" v-for="tag in company.welfare_tags" :key="tag">{{ tag }}</span>
               </div>
             </div>
-            <div v-else class="mono">加载中...</div>
+            <div v-else class="mono">暂无企业信息</div>
           </div>
 
           <div class="card" v-if="similarJobs.length > 0">
@@ -138,9 +146,17 @@ async function loadJob() {
   try {
     job.value = await fetchJob(id);
     if (job.value.company_id) {
-      company.value = await fetchCompany(job.value.company_id);
+      try {
+        company.value = await fetchCompany(job.value.company_id);
+      } catch (_) {
+        company.value = null;
+      }
     }
-    similarJobs.value = await fetchSimilarJobs(id);
+    try {
+      similarJobs.value = await fetchSimilarJobs(id);
+    } catch (_) {
+      similarJobs.value = [];
+    }
   } catch (e) {
     job.value = {};
   }
@@ -173,12 +189,15 @@ async function toggleFavorite() {
       await addFavorite(job.value.id);
     }
     await loadFavorites();
-  } catch (e) {}
+  } catch (e) {
+    toast.error('操作失败，请重试');
+  }
 }
 
 async function applyJob() {
   if (resumes.value.length === 0) {
     toast.warn('请先在个人中心创建简历');
+    router.push('/profile');
     return;
   }
   try {

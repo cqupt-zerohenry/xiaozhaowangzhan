@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import schemas
@@ -155,7 +155,12 @@ def create_resume(
     if not profile:
         raise HTTPException(status_code=404, detail='Student not found')
 
-    record = Resume(**payload.model_dump(exclude={'id', 'create_time'}))
+    max_version = db.scalar(
+        select(func.max(Resume.version_no)).where(Resume.student_id == user_id)
+    ) or 0
+    data = payload.model_dump(exclude={'id', 'create_time'})
+    data['version_no'] = max_version + 1
+    record = Resume(**data)
     db.add(record)
     db.commit()
     db.refresh(record)

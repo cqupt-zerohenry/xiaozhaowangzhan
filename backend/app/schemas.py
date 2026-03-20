@@ -134,14 +134,18 @@ class JobBase(BaseModel):
     job_name: str
     job_type: str
     city: str
-    salary_min: int
-    salary_max: int
+    salary_min: int = Field(..., ge=0)
+    salary_max: int = Field(..., ge=0)
     education: str
     description: str
     requirement: str
     skill_tags: list[str] = []
     status: str = 'active'
     deadline: str = ''
+
+    def model_post_init(self, __context: object) -> None:
+        if self.salary_max < self.salary_min:
+            self.salary_min, self.salary_max = self.salary_max, self.salary_min
 
 
 class JobOut(ORMModel, JobBase):
@@ -325,6 +329,12 @@ class ScreeningInterviewRequest(BaseModel):
     kb_id: int | None = None
 
 
+class DimensionScore(BaseModel):
+    dimension: str
+    score: int
+    comment: str
+
+
 class ScreeningInterviewResponse(BaseModel):
     session_id: int
     template: AIInterviewTemplateOut
@@ -333,6 +343,7 @@ class ScreeningInterviewResponse(BaseModel):
     score: int
     recommendation: str
     focus_areas: list[str] = []
+    dimension_scores: list[DimensionScore] = []
 
 
 class StudentMockUploadRequest(BaseModel):
@@ -352,6 +363,7 @@ class StudentMockUploadResponse(BaseModel):
     strengths: list[str] = []
     improvements: list[str] = []
     next_actions: list[str] = []
+    dimension_scores: list[DimensionScore] = []
 
 
 class AIInterviewSessionOut(ORMModel):
@@ -423,8 +435,8 @@ class RecommendConfigOut(ORMModel):
 
 
 class RecommendConfigUpdate(BaseModel):
-    collaborative_weight: float = 0.4
-    content_weight: float = 0.6
+    collaborative_weight: float = Field(default=0.4, ge=0.0, le=1.0)
+    content_weight: float = Field(default=0.6, ge=0.0, le=1.0)
 
 
 class UnreadCountResponse(BaseModel):
@@ -518,3 +530,59 @@ class JobAssistantJobItem(BaseModel):
 class JobAssistantResponse(BaseModel):
     reply: str
     recommended_jobs: list[JobAssistantJobItem] = []
+
+
+class RecommendEvaluationResponse(BaseModel):
+    total_students: int
+    evaluated_students: int
+    cold_start_users: int
+    total_jobs: int
+    total_applications: int
+    precision_at_5: float
+    recall_at_5: float
+    hit_rate: float
+    coverage: float
+    avg_matched_skills: float
+    algorithm_version: str
+    evaluation_time: str
+
+
+class MajorHeatmapItem(BaseModel):
+    major: str
+    application_count: int
+
+
+class JobTypePopularityItem(BaseModel):
+    job_type: str
+    application_count: int
+
+
+class ConversionFunnelItem(BaseModel):
+    status: str
+    count: int
+
+
+class SkillGapItem(BaseModel):
+    skill: str
+    missing_count: int
+
+
+class CompanyActivityItem(BaseModel):
+    company_name: str
+    total_received: int
+    total_reviewed: int
+    response_rate: float
+
+
+class MonthlyTrendItem(BaseModel):
+    month: str
+    application_count: int
+
+
+class EmploymentAnalyticsResponse(BaseModel):
+    major_heatmap: list[MajorHeatmapItem] = []
+    job_type_popularity: list[JobTypePopularityItem] = []
+    conversion_funnel: list[ConversionFunnelItem] = []
+    skill_gap: list[SkillGapItem] = []
+    company_activity: list[CompanyActivityItem] = []
+    monthly_trend: list[MonthlyTrendItem] = []

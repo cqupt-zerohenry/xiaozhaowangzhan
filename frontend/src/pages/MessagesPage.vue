@@ -64,7 +64,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import toast from '../utils/toast';
-import { fetchMessages, fetchOnlineUsers, fetchUsers, sendMessage } from '../services/api';
+import { fetchMessages, fetchOnlineUsers, fetchUsers, markMessageRead, sendMessage } from '../services/api';
 import { useAuth } from '../store/auth';
 
 const auth = useAuth();
@@ -159,8 +159,15 @@ async function loadMessages() {
   }
 }
 
-function openConversation(peerId) {
+async function openConversation(peerId) {
   activePeerId.value = peerId;
+  const myId = auth.user.value?.id;
+  const unread = messages.value.filter(
+    m => m.sender_id === peerId && m.receiver_id === myId && !m.is_read
+  );
+  for (const m of unread) {
+    try { await markMessageRead(m.id); m.is_read = true; } catch (_) {}
+  }
 }
 
 async function sendReply() {
@@ -189,8 +196,16 @@ async function sendReply() {
 function connectSocket() {
   const userId = auth.user.value?.id;
   if (!userId) return;
+  const apiBase = import.meta.env.VITE_API_BASE || '';
+  let wsHost;
+  if (apiBase && apiBase.startsWith('http')) {
+    const url = new URL(apiBase);
+    wsHost = url.host;
+  } else {
+    wsHost = window.location.host;
+  }
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const wsUrl = `${protocol}://${window.location.host}/ws/chat/${userId}`;
+  const wsUrl = `${protocol}://${wsHost}/ws/chat/${userId}`;
   const ws = new WebSocket(wsUrl);
   ws.onmessage = (event) => {
     const data = event.data;

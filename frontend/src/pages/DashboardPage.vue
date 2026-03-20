@@ -32,8 +32,8 @@
         <div class="grid cards-3">
           <div class="card">
             <h3>学习路径</h3>
-            <p>Linux → 容器 → Kubernetes → 可观测性</p>
-            <button class="btn btn-outline">查看详情</button>
+            <p>AI 根据你的技能和目标岗位生成个性化学习路径。</p>
+            <button class="btn btn-outline" @click="go('/ai')">查看详情</button>
           </div>
           <div class="card">
             <h3>模拟面试计划</h3>
@@ -43,7 +43,7 @@
           <div class="card">
             <h3>简历改进建议</h3>
             <p>基于岗位 JD 的优化清单。</p>
-            <button class="btn btn-outline">查看建议</button>
+            <button class="btn btn-outline" @click="go('/ai')">查看建议</button>
           </div>
         </div>
       </div>
@@ -59,7 +59,7 @@
           <div class="card">
             <h3>候选人池</h3>
             <p>按技能与学校快速筛选。</p>
-            <button class="btn btn-outline">查看候选人</button>
+            <button class="btn btn-outline" @click="go('/company-center')">查看候选人</button>
           </div>
           <div class="card">
             <h3>AI 面试流程</h3>
@@ -90,12 +90,12 @@
           <div class="card">
             <h3>平台统计</h3>
             <p>学生 {{ stats.student_total }} · 企业 {{ stats.company_total }}</p>
-            <button class="btn btn-outline">查看数据</button>
+            <button class="btn btn-outline" @click="go('/admin-center')">查看数据</button>
           </div>
           <div class="card">
             <h3>公告管理</h3>
             <p>已发布 {{ announcements.length }} 条公告</p>
-            <button class="btn btn-outline">管理公告</button>
+            <button class="btn btn-outline" @click="go('/admin-center')">管理公告</button>
           </div>
         </div>
       </div>

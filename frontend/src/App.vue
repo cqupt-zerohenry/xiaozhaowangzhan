@@ -39,7 +39,7 @@
       <div class="container footer-inner">
         <div>
           <strong>AI 校园招聘平台</strong>
-          <p class="mono">AI Matching · RAG · Interview · Mock</p>
+          <p class="mono">AI Matching · RAG · Interview</p>
         </div>
         <div class="footer-links">
           <span class="mono">© 2024 Campus Recruit</span>

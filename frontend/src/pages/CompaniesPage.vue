@@ -6,14 +6,20 @@
           <h1>企业审核</h1>
           <p>校方审核企业资质后才可发布岗位。</p>
         </div>
-        <button class="btn">新增审核任务</button>
+        <div class="hero-actions">
+          <button class="chip" :class="{ active: filterStatus === '' }" @click="filterStatus = ''">全部</button>
+          <button class="chip" :class="{ active: filterStatus === 'pending' }" @click="filterStatus = 'pending'">待审核</button>
+          <button class="chip" :class="{ active: filterStatus === 'approved' }" @click="filterStatus = 'approved'">已通过</button>
+          <button class="chip" :class="{ active: filterStatus === 'rejected' }" @click="filterStatus = 'rejected'">已驳回</button>
+          <button class="btn btn-outline" @click="loadCompanies">刷新</button>
+        </div>
       </div>
     </section>
 
     <section>
       <div class="container">
         <div class="grid list-grid">
-          <div class="card company-card" v-for="company in companies" :key="company.user_id">
+          <div class="card company-card" v-for="company in filteredCompanies" :key="company.user_id">
             <div>
               <h3>{{ company.company_name }}</h3>
               <p>{{ company.description }}</p>
@@ -28,7 +34,7 @@
             </div>
           </div>
         </div>
-        <div v-if="companies.length === 0" class="empty-state card">
+        <div v-if="filteredCompanies.length === 0" class="empty-state card">
           <h3>暂无企业数据</h3>
           <p>请先通过后台创建企业信息。</p>
         </div>
@@ -38,12 +44,18 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { createAudit, fetchCompanies, updateCompanyStatus } from "../services/api";
 import { useAuth } from "../store/auth";
 
 const companies = ref([]);
+const filterStatus = ref('');
 const auth = useAuth();
+
+const filteredCompanies = computed(() => {
+  if (!filterStatus.value) return companies.value;
+  return companies.value.filter(c => c.status === filterStatus.value);
+});
 
 async function loadCompanies() {
   try {
@@ -124,6 +136,28 @@ function statusLabel(status) {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.chip {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chip.active {
+  border-color: rgba(24, 160, 88, 0.5);
+  background: rgba(24, 160, 88, 0.1);
+  color: var(--accent-dark);
 }
 
 .empty-state {
