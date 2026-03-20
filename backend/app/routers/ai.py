@@ -1412,7 +1412,7 @@ def job_match(
     return job_recommend(payload, db, current_user)
 
 
-@router.post('/resume-optimize')
+@router.post('/resume-optimize', response_model=schemas.ResumeOptimizeResponse, summary='Optimize resume with AI')
 def resume_optimize(
     payload: schemas.ResumeOptimizeRequest,
     db: Session = Depends(get_db),
@@ -1898,7 +1898,7 @@ def interview_flow_result(
 # KB Document Upload Extension (PDF/DOCX support)
 # ---------------------------------------------------------------------------
 
-@router.post('/knowledge-bases/{kb_id}/documents/upload-file', summary='Upload PDF/DOCX to knowledge base')
+@router.post('/knowledge-bases/{kb_id}/documents/upload-file', response_model=schemas.KnowledgeDocumentOut, summary='Upload PDF/DOCX to knowledge base')
 async def upload_kb_document_extended(
     kb_id: int,
     file: UploadFile = File(...),
