@@ -193,6 +193,49 @@ textarea {
 /* Salary highlight */
 .salary { color: #ff6b35; font-weight: 700; }
 
+/* Loading skeleton */
+.skeleton {
+  background: linear-gradient(90deg, #e1ebe6 25%, #f0f5f2 50%, #e1ebe6 75%);
+  background-size: 200% 100%;
+  animation: skeleton-pulse 1.5s infinite;
+  border-radius: 8px;
+  min-height: 20px;
+}
+
+@keyframes skeleton-pulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--muted);
+}
+.empty-state-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+/* Form validation */
+input:invalid:not(:placeholder-shown) {
+  border-color: #e53e3e;
+}
+input:valid:not(:placeholder-shown) {
+  border-color: var(--accent);
+}
+
+/* Details/summary (for expandable sections) */
+details summary {
+  cursor: pointer;
+  user-select: none;
+}
+details summary:hover {
+  color: var(--accent-dark);
+}
+
 @media (max-width: 800px) {
   section {
     padding: 20px 0;

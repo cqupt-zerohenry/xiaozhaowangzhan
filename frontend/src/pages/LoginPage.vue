@@ -40,7 +40,7 @@
             </button>
           </div>
 
-          <form v-if="mode === 'login'" @submit.prevent="handleLogin" class="login-form">
+          <form v-if="mode === 'login' && !showResetForm" @submit.prevent="handleLogin" class="login-form">
             <label>
               邮箱
               <input v-model="loginForm.email" type="email" placeholder="请输入邮箱" required />
@@ -52,7 +52,32 @@
             <button class="btn" type="submit" :disabled="loading">
               {{ loading ? '登录中...' : '登录' }}
             </button>
+            <button type="button" class="btn-link" style="text-align: left; font-size: 13px; color: #18a058; background: none; border: none; cursor: pointer; padding: 0;" @click="showResetForm = true">忘记密码？</button>
           </form>
+
+          <!-- Password Reset Form -->
+          <div v-if="mode === 'login' && showResetForm" class="login-form">
+            <h3 style="margin: 0;">重置密码</h3>
+            <label>
+              邮箱
+              <input v-model="resetForm.email" type="email" placeholder="注册时使用的邮箱" required />
+            </label>
+            <div style="display: flex; gap: 8px; align-items: flex-end;">
+              <label style="flex: 1;">
+                验证码
+                <input v-model="resetForm.code" placeholder="请输入验证码" />
+              </label>
+              <button type="button" class="btn btn-outline" style="height: 38px; white-space: nowrap;" :disabled="resetCooldown > 0" @click="sendResetVerifyCode">{{ resetCooldown > 0 ? `${resetCooldown}s` : '发送验证码' }}</button>
+            </div>
+            <label>
+              新密码
+              <input v-model="resetForm.new_password" type="password" placeholder="请输入新密码（至少6位）" />
+            </label>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn" :disabled="loading" @click="handleResetPassword">{{ loading ? '重置中...' : '重置密码' }}</button>
+              <button class="btn btn-outline" @click="showResetForm = false">返回登录</button>
+            </div>
+          </div>
 
           <form v-else @submit.prevent="handleRegister" class="login-form">
             <template v-if="role === 'student'">
@@ -165,8 +190,9 @@
 <script setup>
 import { ref } from "vue";
 import { useRouter } from "vue-router";
-import { registerCompany, registerStudent } from "../services/api";
+import { registerCompany, registerStudent, sendResetCode, resetPasswordByEmail } from "../services/api";
 import { useAuth } from "../store/auth";
+import { toast } from "../utils/toast";
 
 const router = useRouter();
 const auth = useAuth();
@@ -175,6 +201,38 @@ const mode = ref("login");
 const role = ref("student");
 const loading = ref(false);
 const error = ref("");
+const showResetForm = ref(false);
+const resetCooldown = ref(0);
+
+const resetForm = ref({ email: '', code: '', new_password: '' });
+
+function startResetCooldown() {
+  resetCooldown.value = 60;
+  const t = setInterval(() => {
+    resetCooldown.value--;
+    if (resetCooldown.value <= 0) clearInterval(t);
+  }, 1000);
+}
+
+async function sendResetVerifyCode() {
+  if (!resetForm.value.email) { toast.error('请输入邮箱'); return; }
+  try {
+    await sendResetCode(resetForm.value.email);
+    toast.success('重置验证码已发送');
+    startResetCooldown();
+  } catch (e) { toast.error('发送失败，请检查邮箱是否已注册'); }
+}
+
+async function handleResetPassword() {
+  if (!resetForm.value.code || !resetForm.value.new_password) { toast.error('请填写验证码和新密码'); return; }
+  loading.value = true;
+  try {
+    await resetPasswordByEmail(resetForm.value);
+    toast.success('密码已重置，请登录');
+    showResetForm.value = false;
+  } catch (e) { toast.error('重置失败，验证码错误或已过期'); }
+  loading.value = false;
+}
 
 const loginForm = ref({
   email: "",
@@ -189,7 +247,7 @@ const studentForm = ref({
   grade: "",
   phone: "",
   email: "",
-  password: ""
+  password: "",
 });
 
 const companyForm = ref({
@@ -204,7 +262,7 @@ const companyForm = ref({
   scale: "",
   address: "",
   website: "",
-  welfare: ""
+  welfare: "",
 });
 
 const demoAccounts = {

@@ -192,10 +192,12 @@ class AIInterviewSession(Base):
     )
     company_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'), nullable=True, index=True)
     student_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'), nullable=True, index=True)
-    session_type: Mapped[str] = mapped_column(String(20), index=True)  # screening/mock
+    session_type: Mapped[str] = mapped_column(String(20), index=True)  # screening/mock/interview_flow
     learning_content: Mapped[str] = mapped_column(LONGTEXT, default='')
     generated_questions: Mapped[list] = mapped_column(JSON, default=list)
     evaluation_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    answers_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default='pending')  # pending/in_progress/completed
     create_time: Mapped[datetime] = mapped_column(DateTime, default=now_utc, index=True)
 
 
@@ -232,6 +234,19 @@ class RecommendConfig(Base):
     collaborative_weight: Mapped[float] = mapped_column(default=0.4)
     content_weight: Mapped[float] = mapped_column(default=0.6)
     update_time: Mapped[datetime] = mapped_column(DateTime, default=now_utc, onupdate=now_utc)
+
+
+class Notification(Base):
+    __tablename__ = 'notifications'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    content: Mapped[str] = mapped_column(Text, default='')
+    notification_type: Mapped[str] = mapped_column(String(30), default='system', index=True)
+    related_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    create_time: Mapped[datetime] = mapped_column(DateTime, default=now_utc, index=True)
 
 
 class KnowledgeBase(Base):

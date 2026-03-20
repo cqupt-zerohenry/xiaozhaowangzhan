@@ -586,3 +586,115 @@ class EmploymentAnalyticsResponse(BaseModel):
     skill_gap: list[SkillGapItem] = []
     company_activity: list[CompanyActivityItem] = []
     monthly_trend: list[MonthlyTrendItem] = []
+
+
+# ---- Email Verification ----
+
+class SendCodeRequest(BaseModel):
+    email: EmailStr
+    purpose: str = 'register'
+
+
+class VerifyCodeRequest(BaseModel):
+    email: EmailStr
+    code: str
+    purpose: str = 'register'
+
+
+class PasswordResetByEmailRequest(BaseModel):
+    email: EmailStr
+    code: str
+    new_password: str = Field(..., min_length=6)
+
+
+# ---- Resume Parsing ----
+
+class ResumeParseResponse(BaseModel):
+    name: str = ''
+    phone: str = ''
+    email: str = ''
+    school: str = ''
+    major: str = ''
+    skills: list[str] = []
+    experience: list[str] = []
+    raw_text: str = ''
+
+
+# ---- Notifications ----
+
+class NotificationOut(ORMModel):
+    id: int
+    user_id: int
+    title: str
+    content: str
+    notification_type: str
+    related_id: int | None = None
+    is_read: bool
+    create_time: datetime
+
+
+# ---- Interview Flow ----
+
+class InterviewFlowStartRequest(BaseModel):
+    template_id: int | None = None
+    job_title: str = ''
+    question_count: int = Field(default=5, ge=1, le=20)
+
+
+class InterviewFlowQuestionOut(BaseModel):
+    index: int
+    question: str
+    time_limit: int = 120
+
+
+class InterviewFlowStartResponse(BaseModel):
+    session_id: int
+    questions: list[InterviewFlowQuestionOut]
+    total_time: int
+
+
+class InterviewFlowAnswerRequest(BaseModel):
+    session_id: int
+    question_index: int
+    answer: str
+
+
+class InterviewFlowAnswerResponse(BaseModel):
+    feedback: str
+    score: int
+
+
+class InterviewFlowResultResponse(BaseModel):
+    session_id: int
+    total_score: int
+    dimension_scores: list[DimensionScore] = []
+    overall_feedback: str
+    question_feedbacks: list[dict] = []
+
+
+# ---- Company Analytics ----
+
+class CompanyAnalyticsResponse(BaseModel):
+    job_stats: list[dict] = []
+    talent_source: list[dict] = []
+    funnel: list[ConversionFunnelItem] = []
+    trend: list[MonthlyTrendItem] = []
+
+
+# ---- Student Analytics ----
+
+class StudentAnalyticsResponse(BaseModel):
+    skill_competitiveness: list[dict] = []
+    salary_benchmark: dict = {}
+    market_trends: list[dict] = []
+    application_stats: dict = {}
+
+
+# ---- View History Detail ----
+
+class ViewHistoryDetailOut(BaseModel):
+    id: int
+    job_id: int
+    job_name: str = ''
+    company_name: str = ''
+    create_time: datetime

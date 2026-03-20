@@ -29,5 +29,14 @@ class Settings(BaseSettings):
     llm_base_url: str = 'https://api.openai.com/v1'
     llm_model: str = 'gpt-3.5-turbo'
 
+    # SMTP (optional, simulated if not set)
+    smtp_host: str = ''
+    smtp_port: int = 465
+    smtp_user: str = ''
+    smtp_password: str = ''
+
+    # Storage
+    storage_backend: str = 'local'  # 'local' or 's3'
+
 
 settings = Settings()

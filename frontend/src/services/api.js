@@ -520,3 +520,123 @@ export function jobAssistant(payload) {
     body: JSON.stringify(payload)
   });
 }
+
+// Email verification
+export function sendVerificationCode(payload) {
+  return request('/auth/send-code', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function verifyCode(payload) {
+  return request('/auth/verify-code', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function sendResetCode(email) {
+  return request('/auth/send-reset-code', {
+    method: 'POST',
+    body: JSON.stringify({ email, purpose: 'reset' })
+  });
+}
+
+export function resetPasswordByEmail(payload) {
+  return request('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+// Resume parsing
+export function parseResume(file) {
+  const token = getToken();
+  const formData = new FormData();
+  formData.append('file', file);
+  return fetch(`${API_BASE}/ai/parse-resume`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData
+  }).then(res => {
+    if (!res.ok) throw new Error('Parse failed');
+    return res.json();
+  });
+}
+
+// Notifications
+export function fetchNotifications(params = {}) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') query.set(key, value);
+  });
+  const qs = query.toString();
+  return request(`/notifications${qs ? `?${qs}` : ''}`);
+}
+
+export function fetchNotificationUnreadCount() {
+  return request('/notifications/unread-count');
+}
+
+export function markNotificationRead(id) {
+  return request(`/notifications/${id}/read`, { method: 'PATCH' });
+}
+
+export function markAllNotificationsRead() {
+  return request('/notifications/read-all', { method: 'PATCH' });
+}
+
+// Interview flow
+export function startInterviewFlow(payload) {
+  return request('/ai/interview-flow/start', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function answerInterviewFlow(payload) {
+  return request('/ai/interview-flow/answer', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function getInterviewFlowResult(sessionId) {
+  return request(`/ai/interview-flow/${sessionId}/result`);
+}
+
+// Company analytics
+export function fetchCompanyAnalytics(companyId) {
+  return request(`/companies/${companyId}/analytics`);
+}
+
+// Student analytics
+export function fetchStudentAnalytics(studentId) {
+  return request(`/students/${studentId}/analytics`);
+}
+
+// View history
+export function fetchViewHistory(studentId) {
+  return request(`/students/${studentId}/view-history`);
+}
+
+// Student verification requests
+export function fetchStudentVerifications(studentId) {
+  return request(`/students/${studentId}/verification-requests`);
+}
+
+// KB extended upload (PDF/DOCX)
+export function uploadKBDocumentExtended(kbId, file) {
+  const token = getToken();
+  const formData = new FormData();
+  formData.append('file', file);
+  return fetch(`${API_BASE}/ai/knowledge-bases/${kbId}/documents/upload-file`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData
+  }).then(res => {
+    if (!res.ok) throw new Error('Upload failed');
+    return res.json();
+  });
+}

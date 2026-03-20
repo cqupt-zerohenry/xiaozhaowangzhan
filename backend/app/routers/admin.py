@@ -17,6 +17,7 @@ from app.models import (
     CompanyProfile,
     Favorite,
     Job,
+    Notification,
     OperationLog,
     RecommendConfig,
     StudentProfile,
@@ -24,6 +25,7 @@ from app.models import (
     VerificationRequest,
     ViewHistory,
 )
+from app.notification_service import create_notification_sync
 from app.routers.ai import compute_collaborative_scores
 from app.security import hash_password
 
@@ -69,6 +71,18 @@ def create_announcement(
 ) -> schemas.Announcement:
     record = Announcement(**payload.model_dump(exclude={'id', 'create_time', 'update_time'}))
     db.add(record)
+    db.flush()
+
+    # Notify all users about new published announcement
+    if record.status == 'published':
+        all_users = db.scalars(select(User).where(User.status == 'active')).all()
+        for u in all_users:
+            create_notification_sync(
+                db, user_id=u.id,
+                title='新公告', content=f'平台发布了新公告：{record.title}',
+                notification_type='announcement', related_id=record.id,
+            )
+
     db.commit()
     db.refresh(record)
     cache_delete_prefix('stats:')

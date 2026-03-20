@@ -1647,3 +1647,315 @@ def mock_interview(
         f'(3) 场景题先明确问题边界再给出方案。'
     )
     return schemas.MockInterviewResponse(questions=questions, feedback=feedback)
+
+
+# ---------------------------------------------------------------------------
+# Resume Parsing
+# ---------------------------------------------------------------------------
+
+@router.post('/parse-resume', response_model=schemas.ResumeParseResponse, summary='Parse resume from uploaded file')
+async def parse_resume_endpoint(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+) -> schemas.ResumeParseResponse:
+    ext = (file.filename or '').rsplit('.', 1)[-1].lower()
+    if ext not in ('pdf', 'docx', 'doc', 'txt', 'md'):
+        raise HTTPException(status_code=400, detail='Supported formats: PDF, DOCX, TXT, MD')
+
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail='File too large (max 10MB)')
+
+    from app.resume_parser import parse_resume
+    result = parse_resume(content, file.filename or 'resume.txt')
+    return schemas.ResumeParseResponse(**result)
+
+
+# ---------------------------------------------------------------------------
+# Interview Flow (multi-step interactive interview)
+# ---------------------------------------------------------------------------
+
+@router.post('/interview-flow/start', response_model=schemas.InterviewFlowStartResponse,
+             summary='Start an interactive interview session')
+def interview_flow_start(
+    payload: schemas.InterviewFlowStartRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> schemas.InterviewFlowStartResponse:
+    job_title = payload.job_title or '目标岗位'
+    count = payload.question_count
+
+    # If template_id provided, use its config
+    template = None
+    if payload.template_id:
+        template = db.get(AIInterviewTemplate, payload.template_id)
+        if template:
+            job_title = template.job_title or job_title
+            count = template.question_count or count
+
+    focus = extract_keywords(job_title, limit=3) or ['岗位核心能力']
+    q_types = ['技术基础', '项目经验', '场景分析', '沟通协作', '行为面试']
+
+    llm_questions = llm_service.generate_interview_questions(
+        job_title=job_title, focus_points=focus,
+        question_types=q_types, question_count=count,
+    )
+    questions = llm_questions or build_interview_questions(
+        job_title=job_title, question_types=q_types,
+        question_count=count, focus_points=focus,
+    )
+
+    # Time limit per question based on difficulty
+    difficulty = template.difficulty if template else 'medium'
+    time_map = {'easy': 90, 'medium': 120, 'hard': 180}
+    time_limit = time_map.get(difficulty, 120)
+
+    session = AIInterviewSession(
+        template_id=payload.template_id,
+        student_id=current_user.id if current_user.role == 'student' else None,
+        company_id=current_user.id if current_user.role == 'company' else None,
+        session_type='interview_flow',
+        generated_questions=questions,
+        answers_json=[],
+        status='in_progress',
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+
+    q_out = [
+        schemas.InterviewFlowQuestionOut(index=i, question=q, time_limit=time_limit)
+        for i, q in enumerate(questions)
+    ]
+    return schemas.InterviewFlowStartResponse(
+        session_id=session.id,
+        questions=q_out,
+        total_time=time_limit * len(questions),
+    )
+
+
+@router.post('/interview-flow/answer', response_model=schemas.InterviewFlowAnswerResponse,
+             summary='Submit answer for one interview question')
+def interview_flow_answer(
+    payload: schemas.InterviewFlowAnswerRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> schemas.InterviewFlowAnswerResponse:
+    session = db.get(AIInterviewSession, payload.session_id)
+    if not session or session.status == 'completed':
+        raise HTTPException(status_code=404, detail='Session not found or already completed')
+
+    questions = session.generated_questions or []
+    if payload.question_index < 0 or payload.question_index >= len(questions):
+        raise HTTPException(status_code=400, detail='Invalid question index')
+
+    # Store answer
+    answers = list(session.answers_json or [])
+    answers.append({
+        'index': payload.question_index,
+        'question': questions[payload.question_index] if payload.question_index < len(questions) else '',
+        'answer': payload.answer,
+    })
+    session.answers_json = answers
+
+    # Generate per-question feedback
+    question_text = questions[payload.question_index] if payload.question_index < len(questions) else ''
+    answer_text = payload.answer.strip()
+
+    # Rule-based scoring
+    score = 50
+    if len(answer_text) > 200:
+        score += 15
+    if len(answer_text) > 100:
+        score += 10
+    if any(kw in answer_text for kw in ['例如', '比如', '具体', '项目', '实现', '结果', '经验']):
+        score += 10
+    if any(kw in answer_text for kw in ['数据', '指标', '优化', '提升', '架构', '设计']):
+        score += 10
+    score = min(score, 100)
+
+    # Try LLM feedback
+    feedback = ''
+    try:
+        llm_fb = llm_service.chat(
+            '你是面试评估专家，请简短评价回答质量并给出改进建议（50字以内）。',
+            f'问题：{question_text}\n回答：{answer_text}',
+            temperature=0.3, max_tokens=100,
+        )
+        if llm_fb:
+            feedback = llm_fb
+    except Exception:
+        pass
+
+    if not feedback:
+        if score >= 80:
+            feedback = '回答较为完整，条理清晰。可以进一步补充量化数据增强说服力。'
+        elif score >= 60:
+            feedback = '回答涵盖了基本要点，建议增加具体案例和项目经验来丰富内容。'
+        else:
+            feedback = '回答较为简短，建议使用STAR法则组织回答，补充具体细节和成果。'
+
+    db.commit()
+    return schemas.InterviewFlowAnswerResponse(feedback=feedback, score=score)
+
+
+@router.get('/interview-flow/{session_id}/result', response_model=schemas.InterviewFlowResultResponse,
+            summary='Get final interview result')
+def interview_flow_result(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> schemas.InterviewFlowResultResponse:
+    session = db.get(AIInterviewSession, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail='Session not found')
+
+    answers = session.answers_json or []
+    questions = session.generated_questions or []
+
+    # Score each answer
+    question_feedbacks = []
+    total_score = 0
+    for ans in answers:
+        text = ans.get('answer', '')
+        s = 50
+        if len(text) > 200:
+            s += 15
+        if len(text) > 100:
+            s += 10
+        if any(kw in text for kw in ['例如', '比如', '具体', '项目', '实现']):
+            s += 10
+        if any(kw in text for kw in ['数据', '指标', '优化', '提升']):
+            s += 10
+        s = min(s, 100)
+        total_score += s
+        question_feedbacks.append({
+            'index': ans.get('index', 0),
+            'question': ans.get('question', ''),
+            'answer': text,
+            'score': s,
+        })
+
+    avg_score = round(total_score / max(len(answers), 1))
+
+    # Dimension scores
+    answered_count = len(answers)
+    total_len = sum(len(a.get('answer', '')) for a in answers)
+    dimension_scores = [
+        schemas.DimensionScore(
+            dimension='表达完整度',
+            score=min(100, int(total_len / max(answered_count, 1) / 2)),
+            comment='基于回答的平均长度和信息量',
+        ),
+        schemas.DimensionScore(
+            dimension='专业深度',
+            score=avg_score,
+            comment='基于专业关键词覆盖和案例丰富度',
+        ),
+        schemas.DimensionScore(
+            dimension='逻辑条理',
+            score=min(100, avg_score + 5),
+            comment='基于回答的结构化程度',
+        ),
+        schemas.DimensionScore(
+            dimension='实践经验',
+            score=min(100, int(sum(1 for a in answers if '项目' in a.get('answer', '') or '实习' in a.get('answer', '')) / max(answered_count, 1) * 100)),
+            comment='基于项目/实习经历的提及率',
+        ),
+        schemas.DimensionScore(
+            dimension='综合表现',
+            score=avg_score,
+            comment='各维度综合评估',
+        ),
+    ]
+
+    # Overall feedback
+    if avg_score >= 80:
+        overall = '整体表现优秀！回答完整、条理清晰、有深度。建议继续保持，可以更多关注行业前沿趋势。'
+    elif avg_score >= 60:
+        overall = '整体表现良好，基础扎实。建议加强项目经验的描述，使用更多量化数据来支撑观点。'
+    else:
+        overall = '有提升空间。建议：(1)提前准备常见面试题；(2)使用STAR法则组织回答；(3)多积累实际项目经验。'
+
+    session.status = 'completed'
+    session.evaluation_json = {
+        'total_score': avg_score,
+        'dimension_scores': [d.model_dump() for d in dimension_scores],
+        'overall_feedback': overall,
+    }
+    db.commit()
+
+    return schemas.InterviewFlowResultResponse(
+        session_id=session_id,
+        total_score=avg_score,
+        dimension_scores=dimension_scores,
+        overall_feedback=overall,
+        question_feedbacks=question_feedbacks,
+    )
+
+
+# ---------------------------------------------------------------------------
+# KB Document Upload Extension (PDF/DOCX support)
+# ---------------------------------------------------------------------------
+
+@router.post('/knowledge-bases/{kb_id}/documents/upload-file', summary='Upload PDF/DOCX to knowledge base')
+async def upload_kb_document_extended(
+    kb_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> schemas.KnowledgeDocumentOut:
+    kb = db.get(KnowledgeBase, kb_id)
+    if not kb:
+        raise HTTPException(status_code=404, detail='Knowledge base not found')
+
+    ext = (file.filename or '').rsplit('.', 1)[-1].lower()
+    if ext not in ('txt', 'md', 'pdf', 'docx', 'doc'):
+        raise HTTPException(status_code=400, detail='Supported: txt, md, pdf, docx')
+
+    content_bytes = await file.read()
+    if len(content_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail='File too large (max 10MB)')
+
+    # Extract text
+    if ext in ('pdf',):
+        from app.resume_parser import extract_text_from_pdf
+        text = extract_text_from_pdf(content_bytes)
+    elif ext in ('docx', 'doc'):
+        from app.resume_parser import extract_text_from_docx
+        text = extract_text_from_docx(content_bytes)
+    else:
+        text = content_bytes.decode('utf-8', errors='ignore')
+
+    if not text.strip():
+        raise HTTPException(status_code=400, detail='Could not extract text from file')
+
+    # Create document and chunks (reuse existing chunking logic)
+    from app.rag_service import chunk_and_embed
+    pairs = chunk_and_embed(text)
+
+    doc = KnowledgeDocument(
+        kb_id=kb_id,
+        title=file.filename or 'Uploaded document',
+        source_type='upload',
+        raw_content=text[:5000],
+        chunk_count=len(pairs),
+        status='ready',
+    )
+    db.add(doc)
+    db.flush()
+
+    for idx, (chunk_text, embedding) in enumerate(pairs):
+        chunk = KnowledgeChunk(
+            document_id=doc.id,
+            kb_id=kb_id,
+            chunk_index=idx,
+            content=chunk_text,
+            embedding=embedding,
+            token_count=len(chunk_text),
+        )
+        db.add(chunk)
+
+    db.commit()
+    db.refresh(doc)
+    return schemas.KnowledgeDocumentOut.model_validate(doc)

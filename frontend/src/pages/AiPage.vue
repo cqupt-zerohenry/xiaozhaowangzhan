@@ -124,13 +124,25 @@
                 <div class="progress">
                   <div class="progress-bar" :style="{ width: match.final_score + '%' }"></div>
                 </div>
-                <p class="mono">内容得分：{{ match.content_score }}%</p>
-                <p class="mono">协同得分：{{ match.collaborative_score }}%</p>
-                <p class="mono">匹配技能：{{ match.matched_skills.join(', ') || '暂无' }}</p>
-                <p class="mono">缺失技能：{{ match.missing_skills.join(', ') || '暂无' }}</p>
-                <div class="reason-block" v-if="match.reason">
-                  <p class="mono" style="white-space:pre-wrap;font-size:12px;color:var(--muted);margin-top:8px;padding:8px;background:#f8faf9;border-radius:8px">{{ match.reason }}</p>
+                <!-- Score breakdown bar -->
+                <div style="display: flex; height: 12px; border-radius: 6px; overflow: hidden; margin: 8px 0;">
+                  <div :style="{ width: Math.max(match.content_score, 5) + '%', background: '#18a058' }" :title="'内容得分 ' + match.content_score + '%'"></div>
+                  <div :style="{ width: Math.max(match.collaborative_score, 5) + '%', background: '#4dabf7' }" :title="'协同得分 ' + match.collaborative_score + '%'"></div>
                 </div>
+                <div style="display: flex; gap: 16px; font-size: 12px; margin-bottom: 8px;">
+                  <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#18a058;margin-right:4px;"></span>内容 {{ match.content_score }}%</span>
+                  <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#4dabf7;margin-right:4px;"></span>协同 {{ match.collaborative_score }}%</span>
+                </div>
+                <!-- Skill tags -->
+                <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px;">
+                  <span v-for="s in match.matched_skills" :key="s" class="tag" style="background: rgba(24,160,88,0.12); color: #18a058; font-size: 11px;">{{ s }}</span>
+                  <span v-for="s in match.missing_skills" :key="'m'+s" class="tag" style="background: rgba(229,62,62,0.08); color: #e53e3e; font-size: 11px; text-decoration: line-through;">{{ s }}</span>
+                </div>
+                <!-- Expandable reason -->
+                <details v-if="match.reason" style="margin-top: 4px;">
+                  <summary style="cursor: pointer; font-size: 13px; color: #18a058;">为什么推荐？</summary>
+                  <p class="mono" style="white-space:pre-wrap;font-size:12px;color:var(--muted);margin-top:6px;padding:8px;background:#f8faf9;border-radius:8px">{{ match.reason }}</p>
+                </details>
               </div>
             </div>
           </div>

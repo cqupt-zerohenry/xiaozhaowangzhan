@@ -1,21 +1,45 @@
 from __future__ import annotations
 
+import json
+import logging
 import os
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.cache import get_redis
 from app.config import settings
 from app.db import SessionLocal, init_db
-from app.routers import ai, admin, applications, auth, companies, favorites, files, jobs, messages, students, users
+from app.routers import ai, admin, applications, auth, companies, favorites, files, jobs, messages, notifications, students, users
 from app.seed import seed_data
+
+logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), 'uploads')
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-app = FastAPI(title=settings.app_name)
+# Rate limiter
+limiter = Limiter(key_func=get_remote_address, default_limits=['60/minute'])
+
+app = FastAPI(
+    title=settings.app_name,
+    description='AI-powered campus recruitment platform with job matching, RAG knowledge base, and AI interviews.',
+    version='0.2.0',
+    docs_url='/docs',
+    redoc_url='/redoc',
+    contact={'name': 'AI Campus Recruit', 'email': 'admin@campus-recruit.edu'},
+)
+
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
 
 app.mount('/uploads', StaticFiles(directory=UPLOAD_DIR), name='uploads')
 
@@ -28,6 +52,60 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
+
+# ---- XSS Sanitization Middleware ----
+
+class XSSSanitizeMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.method in ('POST', 'PUT', 'PATCH') and request.headers.get('content-type', '').startswith('application/json'):
+            try:
+                body = await request.body()
+                if body:
+                    import bleach
+                    data = json.loads(body)
+                    sanitized = self._sanitize(data, bleach)
+                    # Re-create request with sanitized body
+                    new_body = json.dumps(sanitized, ensure_ascii=False).encode('utf-8')
+
+                    async def receive():
+                        return {'type': 'http.request', 'body': new_body}
+                    request._receive = receive
+            except Exception:
+                pass
+        return await call_next(request)
+
+    def _sanitize(self, obj, bleach):
+        if isinstance(obj, str):
+            return bleach.clean(obj)
+        if isinstance(obj, dict):
+            return {k: self._sanitize(v, bleach) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [self._sanitize(item, bleach) for item in obj]
+        return obj
+
+
+app.add_middleware(XSSSanitizeMiddleware)
+
+
+# ---- Global Exception Handlers ----
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(status_code=429, content={'detail': '请求过于频繁，请稍后再试', 'code': 429})
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(status_code=422, content={'detail': str(exc), 'code': 422})
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.exception('Unhandled exception: %s', exc)
+    return JSONResponse(status_code=500, content={'detail': '服务器内部错误', 'code': 500})
+
+
+# ---- WebSocket Connection Manager ----
 
 class ConnectionManager:
     def __init__(self) -> None:
@@ -85,7 +163,6 @@ async def chat_socket(websocket: WebSocket, user_id: int) -> None:
                         receiver_id = int(receiver_id_str)
                     except ValueError:
                         continue
-                    # Persist to database with proper session handling
                     from app.models import Message as MessageModel
                     db = SessionLocal()
                     try:
@@ -125,3 +202,4 @@ app.include_router(ai.router, prefix='/api')
 app.include_router(admin.router, prefix='/api')
 app.include_router(files.router, prefix='/api')
 app.include_router(favorites.router, prefix='/api')
+app.include_router(notifications.router, prefix='/api')

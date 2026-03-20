@@ -12,6 +12,9 @@ import CompanyCenterPage from "./pages/CompanyCenterPage.vue";
 import AdminCenterPage from "./pages/AdminCenterPage.vue";
 import JobDetailPage from "./pages/JobDetailPage.vue";
 import FavoritesPage from "./pages/FavoritesPage.vue";
+import NotificationsPage from "./pages/NotificationsPage.vue";
+import InterviewFlowPage from "./pages/InterviewFlowPage.vue";
+import ViewHistoryPage from "./pages/ViewHistoryPage.vue";
 import { useAuth } from "./store/auth";
 
 const router = createRouter({
@@ -28,7 +31,10 @@ const router = createRouter({
     { path: "/ai", name: "ai", component: AiPage, meta: { roles: ["student", "company", "admin"] } },
     { path: "/messages", name: "messages", component: MessagesPage, meta: { roles: ["student", "company", "admin"] } },
     { path: "/profile", name: "profile", component: ProfilePage, meta: { roles: ["student"] } },
-    { path: "/favorites", name: "favorites", component: FavoritesPage, meta: { roles: ["student"] } }
+    { path: "/favorites", name: "favorites", component: FavoritesPage, meta: { roles: ["student"] } },
+    { path: "/notifications", name: "notifications", component: NotificationsPage, meta: { roles: ["student", "company", "admin"] } },
+    { path: "/interview-flow", name: "interview-flow", component: InterviewFlowPage, meta: { roles: ["student", "company"] } },
+    { path: "/view-history", name: "view-history", component: ViewHistoryPage, meta: { roles: ["student"] } }
   ],
   scrollBehavior() {
     return { top: 0 };

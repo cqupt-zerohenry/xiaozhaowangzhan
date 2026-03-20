@@ -106,6 +106,35 @@
             <span class="tag mono">{{ item.status }}</span>
           </div>
         </div>
+
+        <!-- Company Analytics Card -->
+        <div class="card">
+          <h3>数据分析</h3>
+          <button class="btn btn-outline" @click="loadAnalytics" :disabled="analyticsLoading">{{ analyticsLoading ? '加载中...' : '查看数据分析' }}</button>
+          <div v-if="companyAnalytics">
+            <h4 style="margin-top: 16px;">各岗位数据</h4>
+            <div v-for="js in companyAnalytics.job_stats" :key="js.job_id" style="border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-bottom: 8px;">
+              <strong>{{ js.job_name }}</strong>
+              <div class="mono" style="font-size: 12px;">浏览 {{ js.views }} | 投递 {{ js.applications }} | 转化率 {{ js.conversion_rate }}%</div>
+            </div>
+
+            <h4 style="margin-top: 16px;">人才来源</h4>
+            <div v-for="ts in companyAnalytics.talent_source" :key="ts.name" style="display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0;">
+              <span>{{ ts.name }} <span class="tag" style="font-size: 11px;">{{ ts.type }}</span></span>
+              <span class="mono">{{ ts.count }}人</span>
+            </div>
+
+            <h4 style="margin-top: 16px;">招聘漏斗</h4>
+            <div v-for="f in companyAnalytics.funnel" :key="f.status" style="margin-bottom: 6px;">
+              <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                <span>{{ f.status }}</span><span class="mono">{{ f.count }}</span>
+              </div>
+              <div style="height: 6px; background: #e1ebe6; border-radius: 3px; overflow: hidden;">
+                <div :style="{ width: Math.min(100, f.count * 10) + '%', height: '100%', background: '#18a058', borderRadius: '3px' }"></div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   </div>
@@ -121,7 +150,8 @@ import {
   fetchCompanyVerificationRequests,
   submitCompanyCertification,
   updateCompany,
-  uploadFile
+  uploadFile,
+  fetchCompanyAnalytics,
 } from "../services/api";
 import { useAuth } from "../store/auth";
 import toast from '../utils/toast';
@@ -145,6 +175,16 @@ const company = ref({
 
 const recommendations = ref([]);
 const verifyRequests = ref([]);
+const companyAnalytics = ref(null);
+const analyticsLoading = ref(false);
+
+async function loadAnalytics() {
+  analyticsLoading.value = true;
+  try {
+    companyAnalytics.value = await fetchCompanyAnalytics(auth.user.value?.id);
+  } catch (e) { toast.error('加载分析失败'); }
+  analyticsLoading.value = false;
+}
 const candidateFilters = ref({
   school: "",
   major: "",

@@ -1,18 +1,24 @@
 from __future__ import annotations
 
+from collections import Counter
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import extract, func, select
 from sqlalchemy.orm import Session
 
 from app import schemas
+from app.cache import cache_get_json, cache_set_json
 from app.db import get_db
 from app.dependencies import get_current_user, require_roles
 from app.models import (
+    Application,
     CompanyProfile,
     Job,
     StudentProfile,
     User,
     VerificationRequest,
+    ViewHistory,
 )
 
 router = APIRouter(prefix='/companies', tags=['companies'])
@@ -201,3 +207,96 @@ def list_verification_requests(
         .order_by(VerificationRequest.id.desc())
     ).all()
     return [schemas.VerificationRequestOut.model_validate(row) for row in rows]
+
+
+# ---------------------------------------------------------------------------
+# Company Analytics
+# ---------------------------------------------------------------------------
+
+@router.get('/{user_id}/analytics', response_model=schemas.CompanyAnalyticsResponse,
+            summary='Company recruitment analytics')
+def company_analytics(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> schemas.CompanyAnalyticsResponse:
+    ensure_company_owner_or_admin(current_user, user_id)
+
+    cache_key = f'company_analytics:{user_id}'
+    cached = cache_get_json(cache_key)
+    if cached:
+        return schemas.CompanyAnalyticsResponse(**cached)
+
+    company_jobs = db.scalars(select(Job).where(Job.company_id == user_id)).all()
+    job_ids = [j.id for j in company_jobs]
+
+    # Per-job stats: views, applications, conversion
+    job_stats = []
+    for job in company_jobs:
+        view_count = db.scalar(
+            select(func.count()).select_from(ViewHistory).where(ViewHistory.job_id == job.id)
+        ) or 0
+        app_count = db.scalar(
+            select(func.count()).select_from(Application).where(Application.job_id == job.id)
+        ) or 0
+        job_stats.append({
+            'job_id': job.id,
+            'job_name': job.job_name,
+            'views': view_count,
+            'applications': app_count,
+            'conversion_rate': round(app_count / max(view_count, 1) * 100, 1),
+        })
+
+    # Talent source: school and major distribution
+    if job_ids:
+        apps = db.scalars(select(Application).where(Application.job_id.in_(job_ids))).all()
+        school_counter: Counter[str] = Counter()
+        major_counter: Counter[str] = Counter()
+        for app in apps:
+            student = db.get(StudentProfile, app.student_id)
+            if student:
+                school_counter[student.school] += 1
+                major_counter[student.major] += 1
+        talent_source = [
+            {'type': 'school', 'name': name, 'count': count}
+            for name, count in school_counter.most_common(10)
+        ] + [
+            {'type': 'major', 'name': name, 'count': count}
+            for name, count in major_counter.most_common(10)
+        ]
+    else:
+        apps = []
+        talent_source = []
+
+    # Conversion funnel
+    status_counter: Counter[str] = Counter(a.status for a in apps)
+    funnel_order = ['submitted', 'viewed', 'reviewing', 'to_contact', 'interview_scheduled', 'interviewing', 'accepted', 'rejected']
+    funnel = [
+        schemas.ConversionFunnelItem(status=s, count=status_counter.get(s, 0))
+        for s in funnel_order
+    ]
+
+    # Monthly trend (last 6 months)
+    six_months_ago = datetime.utcnow() - timedelta(days=180)
+    if job_ids:
+        monthly_rows = db.execute(
+            select(
+                extract('year', Application.create_time).label('y'),
+                extract('month', Application.create_time).label('m'),
+                func.count(Application.id).label('cnt'),
+            )
+            .where(Application.job_id.in_(job_ids), Application.create_time >= six_months_ago)
+            .group_by('y', 'm').order_by('y', 'm')
+        ).all()
+        trend = [
+            schemas.MonthlyTrendItem(month=f'{int(r[0])}-{int(r[1]):02d}', application_count=r[2])
+            for r in monthly_rows
+        ]
+    else:
+        trend = []
+
+    result = schemas.CompanyAnalyticsResponse(
+        job_stats=job_stats, talent_source=talent_source, funnel=funnel, trend=trend,
+    )
+    cache_set_json(cache_key, result.model_dump(), ttl_seconds=60)
+    return result

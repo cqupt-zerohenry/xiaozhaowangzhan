@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 from app import schemas
 from app.db import get_db
 from app.dependencies import get_current_user
-from app.models import Application, Job, Message, Resume, StudentProfile, User
+from app.models import Application, Job, Message, Notification, Resume, StudentProfile, User
+from app.notification_service import create_notification_sync
 
 router = APIRouter(prefix='/applications', tags=['applications'])
 
@@ -164,13 +165,21 @@ def update_status(
         }
         job = db.get(Job, record.job_id)
         job_name = job.job_name if job else f'岗位{record.job_id}'
-        notification = Message(
+        msg = Message(
             sender_id=current_user.id,
             receiver_id=record.student_id,
             content=f'[系统通知] 您投递的「{job_name}」状态已更新为：{status_labels.get(payload.status, payload.status)}',
             message_type='system',
         )
-        db.add(notification)
+        db.add(msg)
+        create_notification_sync(
+            db,
+            user_id=record.student_id,
+            title='投递状态更新',
+            content=f'您投递的「{job_name}」状态已更新为：{status_labels.get(payload.status, payload.status)}',
+            notification_type='application',
+            related_id=application_id,
+        )
 
     db.commit()
     db.refresh(record)

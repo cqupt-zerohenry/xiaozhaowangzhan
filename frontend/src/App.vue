@@ -21,10 +21,12 @@
           </RouterLink>
         </nav>
         <div class="nav-actions">
+          <NotificationBell v-if="isAuthed" />
           <span class="tag mono">{{ roleLabel }}</span>
           <RouterLink v-if="isAuthed" to="/profile" class="nav-user" v-show="role === 'student'">{{ auth.user.value?.name || '我的' }}</RouterLink>
-          <button v-if="showLogin" class="btn btn-outline" @click="goLogin">登录</button>
-          <button v-else-if="isAuthed" class="btn btn-outline" @click="logoutAndGo">退出</button>
+          <button class="btn btn-outline" style="padding: 4px 10px; font-size: 12px;" @click="toggleLocale">{{ locale === 'zh' ? 'EN' : '中' }}</button>
+          <button v-if="showLogin" class="btn btn-outline" @click="goLogin">{{ t('auth.login') }}</button>
+          <button v-else-if="isAuthed" class="btn btn-outline" @click="logoutAndGo">{{ t('auth.logout') }}</button>
         </div>
       </div>
     </header>
@@ -38,8 +40,8 @@
     <footer class="footer">
       <div class="container footer-inner">
         <div>
-          <strong>AI 校园招聘平台</strong>
-          <p class="mono">AI Matching · RAG · Interview</p>
+          <strong>{{ t('footer.title') }}</strong>
+          <p class="mono">{{ t('footer.subtitle') }}</p>
         </div>
         <div class="footer-links">
           <span class="mono">© 2024 Campus Recruit</span>
@@ -53,9 +55,18 @@
 <script setup>
 import { computed, onMounted, onBeforeUnmount, ref } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import JobAssistantBall from "./components/JobAssistantBall.vue";
+import NotificationBell from "./components/NotificationBell.vue";
 import { useAuth } from "./store/auth";
 import { fetchUnreadCount } from "./services/api";
+
+const { t, locale } = useI18n();
+
+function toggleLocale() {
+  locale.value = locale.value === 'zh' ? 'en' : 'zh';
+  localStorage.setItem('locale', locale.value);
+}
 
 const router = useRouter();
 const route = useRoute();
@@ -86,41 +97,44 @@ onBeforeUnmount(() => {
   if (unreadTimer) clearInterval(unreadTimer);
 });
 const roleLabel = computed(() => {
-  if (!isAuthed.value) return "未登录";
-  return { student: "学生", company: "招聘公司", admin: "校方" }[role.value] || "未知角色";
+  if (!isAuthed.value) return t('role.notLoggedIn');
+  return { student: t('role.student'), company: t('role.company'), admin: t('role.admin') }[role.value] || t('role.unknown');
 });
 
 const navItems = computed(() => {
   if (!isAuthed.value) {
     return [
-      { label: "首页", path: "/" }
+      { label: t('nav.home'), path: "/" }
     ];
   }
   const msgBadge = unreadCount.value > 0 ? (unreadCount.value > 99 ? '99+' : unreadCount.value) : null;
   if (role.value === "student") {
     return [
-      { label: "工作台", path: "/dashboard" },
-      { label: "职位", path: "/jobs" },
-      { label: "收藏", path: "/favorites" },
-      { label: "AI 助手", path: "/ai" },
-      { label: "消息", path: "/messages", badge: msgBadge },
-      { label: "我的", path: "/profile" }
+      { label: t('nav.dashboard'), path: "/dashboard" },
+      { label: t('nav.jobs'), path: "/jobs" },
+      { label: t('nav.favorites'), path: "/favorites" },
+      { label: t('nav.viewHistory'), path: "/view-history" },
+      { label: t('nav.ai'), path: "/ai" },
+      { label: t('nav.interview'), path: "/interview-flow" },
+      { label: t('nav.messages'), path: "/messages", badge: msgBadge },
+      { label: t('nav.profile'), path: "/profile" }
     ];
   }
   if (role.value === "company") {
     return [
-      { label: "工作台", path: "/dashboard" },
-      { label: "职位管理", path: "/jobs" },
-      { label: "企业中心", path: "/company-center" },
-      { label: "AI 助手", path: "/ai" },
-      { label: "消息", path: "/messages", badge: msgBadge }
+      { label: t('nav.dashboard'), path: "/dashboard" },
+      { label: t('nav.jobManagement'), path: "/jobs" },
+      { label: t('nav.companyCenter'), path: "/company-center" },
+      { label: t('nav.ai'), path: "/ai" },
+      { label: t('nav.aiInterview'), path: "/interview-flow" },
+      { label: t('nav.messages'), path: "/messages", badge: msgBadge }
     ];
   }
   return [
-    { label: "工作台", path: "/dashboard" },
-    { label: "企业审核", path: "/companies" },
-    { label: "管理中心", path: "/admin-center" },
-    { label: "消息", path: "/messages", badge: msgBadge }
+    { label: t('nav.dashboard'), path: "/dashboard" },
+    { label: t('nav.companies'), path: "/companies" },
+    { label: t('nav.adminCenter'), path: "/admin-center" },
+    { label: t('nav.messages'), path: "/messages", badge: msgBadge }
   ];
 });
 

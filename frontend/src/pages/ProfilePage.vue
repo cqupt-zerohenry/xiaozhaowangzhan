@@ -91,6 +91,69 @@
             上传 PDF 简历
             <input type="file" accept=".pdf,.doc,.docx" @change="uploadResumePdf" />
           </label>
+
+          <!-- Resume Parsing -->
+          <div style="margin-top: 16px; border-top: 1px dashed var(--line); padding-top: 16px;">
+            <h4>简历智能解析</h4>
+            <p class="mono" style="font-size: 12px; margin-bottom: 8px;">上传PDF/DOCX简历，AI自动提取信息填充到档案</p>
+            <label class="upload-label">
+              选择简历文件解析
+              <input type="file" accept=".pdf,.docx,.doc,.txt" @change="handleParseResume" />
+            </label>
+            <div v-if="parseLoading" class="mono" style="margin-top: 8px;">解析中...</div>
+            <div v-if="parseResult" class="resume-preview" style="margin-top: 12px;">
+              <p><strong>姓名：</strong>{{ parseResult.name }}</p>
+              <p><strong>学校：</strong>{{ parseResult.school }}</p>
+              <p><strong>专业：</strong>{{ parseResult.major }}</p>
+              <p><strong>手机：</strong>{{ parseResult.phone }}</p>
+              <p v-if="parseResult.skills?.length"><strong>技能：</strong>{{ parseResult.skills.join(', ') }}</p>
+              <button class="btn" style="margin-top: 8px;" @click="applyParseResult">应用到档案</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Student Analytics -->
+        <div class="card">
+          <h3>就业分析</h3>
+          <button class="btn btn-outline" @click="loadAnalytics" :disabled="analyticsLoading">{{ analyticsLoading ? '加载中...' : '查看分析' }}</button>
+          <div v-if="analytics">
+            <h4 style="margin-top: 16px;">技能竞争力</h4>
+            <div v-for="sk in analytics.skill_competitiveness" :key="sk.skill" style="margin-bottom: 8px;">
+              <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                <span>{{ sk.skill }}</span><span class="mono">稀缺度 {{ sk.percentile }}%</span>
+              </div>
+              <div style="height: 6px; background: #e1ebe6; border-radius: 3px; overflow: hidden;">
+                <div :style="{ width: sk.percentile + '%', height: '100%', background: '#18a058', borderRadius: '3px' }"></div>
+              </div>
+            </div>
+            <h4 style="margin-top: 16px;">薪资基准</h4>
+            <div v-if="analytics.salary_benchmark.sample_count" class="mono" style="font-size: 13px;">
+              范围 {{ analytics.salary_benchmark.min }}~{{ analytics.salary_benchmark.max }}
+              | 均值 {{ analytics.salary_benchmark.avg_min }}~{{ analytics.salary_benchmark.avg_max }}
+              ({{ analytics.salary_benchmark.sample_count }}个样本)
+            </div>
+            <div v-else class="mono" style="font-size: 12px; color: #aaa;">暂无匹配薪资数据</div>
+            <h4 style="margin-top: 16px;">投递统计</h4>
+            <div v-if="analytics.application_stats" class="mono" style="font-size: 13px;">
+              投递 {{ analytics.application_stats.total_applied }}
+              | 面试率 {{ analytics.application_stats.interview_rate }}%
+              | Offer率 {{ analytics.application_stats.offer_rate }}%
+            </div>
+          </div>
+        </div>
+
+        <!-- Verification Requests -->
+        <div class="card">
+          <h3>核验请求</h3>
+          <div v-if="!verifications.length" class="mono">暂无核验请求</div>
+          <div v-for="v in verifications" :key="v.id" style="border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between;">
+              <span>企业ID: {{ v.company_id }}</span>
+              <span class="tag" :style="{ background: v.status === 'approved' ? '#18a058' : v.status === 'rejected' ? '#e53e3e' : '#f0a020', color: '#fff' }">{{ v.status }}</span>
+            </div>
+            <div class="mono" style="font-size: 12px;">核验字段: {{ (v.fields || []).join(', ') }}</div>
+            <div v-if="v.result" style="font-size: 13px; margin-top: 4px;">结果: {{ v.result }}</div>
+          </div>
         </div>
       </div>
     </section>
@@ -106,7 +169,10 @@ import {
   fetchStudentProfile,
   updateStudentIntention,
   updateStudentProfile,
-  uploadFile
+  uploadFile,
+  parseResume,
+  fetchStudentAnalytics,
+  fetchStudentVerifications,
 } from "../services/api";
 import { useAuth } from "../store/auth";
 import toast from '../utils/toast';
@@ -146,6 +212,11 @@ const awardsInput = ref('');
 const internshipsInput = ref('');
 const projectsInput = ref('');
 const previewResume = ref(null);
+const parseLoading = ref(false);
+const parseResult = ref(null);
+const analytics = ref(null);
+const analyticsLoading = ref(false);
+const verifications = ref([]);
 
 async function loadData() {
   if (!userId) return;
@@ -220,12 +291,53 @@ async function uploadResumePdf(event) {
   }
 }
 
+async function handleParseResume(event) {
+  const file = event?.target?.files?.[0];
+  if (!file) return;
+  parseLoading.value = true;
+  parseResult.value = null;
+  try {
+    parseResult.value = await parseResume(file);
+    toast.success('解析完成');
+  } catch (e) { toast.error('解析失败'); }
+  parseLoading.value = false;
+}
+
+function applyParseResult() {
+  if (!parseResult.value) return;
+  const r = parseResult.value;
+  if (r.name) profile.value.name = r.name;
+  if (r.school) profile.value.school = r.school;
+  if (r.major) profile.value.major = r.major;
+  if (r.phone) profile.value.phone = r.phone;
+  if (r.email) profile.value.email = r.email;
+  if (r.skills?.length) {
+    profile.value.skills = r.skills;
+    skillsInput.value = r.skills.join(', ');
+  }
+  toast.success('已应用到档案，请保存');
+}
+
+async function loadAnalytics() {
+  analyticsLoading.value = true;
+  try {
+    analytics.value = await fetchStudentAnalytics(userId);
+  } catch (e) { toast.error('加载分析失败'); }
+  analyticsLoading.value = false;
+}
+
+async function loadVerifications() {
+  try {
+    verifications.value = await fetchStudentVerifications(userId);
+  } catch (e) { /* */ }
+}
+
 function formatTime(value) {
   if (!value) return "";
   return value.replace("T", " ").slice(0, 16);
 }
 
-onMounted(loadData);
+onMounted(() => { loadData(); loadVerifications(); });
 </script>
 
 <style scoped>
