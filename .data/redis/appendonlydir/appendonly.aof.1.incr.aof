@@ -1,0 +1,485 @@
+*2
+$6
+SELECT
+$1
+0
+*5
+$3
+SET
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+$2289
+[{"company_id": 2, "job_name": "SRE 运维开发实习生", "job_type": "SRE/运维", "city": "上海", "salary_min": 8000, "salary_max": 12000, "education": "本科", "description": "负责云平台可靠性保障与自动化运维工具开发，参与容器化部署与监控告警体系建设。", "requirement": "1. 熟悉 Linux 操作系统\n2. 了解 Docker/Kubernetes\n3. 掌握 Python 或 Go\n4. 有监控/日志系统使用经验优先", "skill_tags": ["Linux", "Docker", "Kubernetes", "Python"], "status": "active", "deadline": "2026-06-30", "id": 1, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "Java 后端开发实习生", "job_type": "后端开发", "city": "杭州", "salary_min": 9000, "salary_max": 13000, "education": "本科", "description": "参与 AI 平台后端服务开发，负责接口设计、数据库优化与微服务治理。", "requirement": "1. 熟练掌握 Java/Spring Boot\n2. 熟悉 MySQL/Redis\n3. 了解微服务架构\n4. 有实际项目经验优先", "skill_tags": ["Java", "Spring Boot", "MySQL", "Redis", "Docker"], "status": "active", "deadline": "2026-06-30", "id": 2, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "AI 算法实习生", "job_type": "AI/算法", "city": "杭州", "salary_min": 10000, "salary_max": 16000, "education": "本科", "description": "参与模型训练流水线搭建与 AI 服务部署，研究前沿算法并落地到业务场景。", "requirement": "1. 熟练掌握 Python\n2. 熟悉 PyTorch/TensorFlow\n3. 有机器学习项目经验\n4. 了解数据处理流程", "skill_tags": ["Python", "PyTorch", "TensorFlow", "SQL"], "status": "active", "deadline": "2026-06-30", "id": 3, "create_time": "2026-03-20T12:14:34"}, {"company_id": 2, "job_name": "前端开发实习生", "job_type": "前端开发", "city": "上海", "salary_min": 8000, "salary_max": 11000, "education": "本科", "description": "参与内部管理系统与数据可视化平台的前端开发，使用 Vue3 技术栈。", "requirement": "1. 熟悉 HTML/CSS/JavaScript\n2. 掌握 Vue 或 React\n3. 了解 HTTP 协议\n4. 有组件化开发经验优先", "skill_tags": ["Vue", "JavaScript", "HTML", "CSS"], "status": "active", "deadline": "2026-06-30", "id": 4, "create_time": "2026-03-20T12:14:34"}]
+$4
+PXAT
+$13
+1774009013061
+*5
+$3
+SET
+$14
+stats:overview
+$80
+{"student_total": 3, "company_total": 2, "job_total": 4, "application_total": 6}
+$4
+PXAT
+$13
+1774008986956
+*5
+$3
+SET
+$14
+stats:enhanced
+$474
+{"student_total": 3, "company_total": 2, "job_total": 4, "application_total": 6, "hot_job_types": [{"type": "SRE/运维", "count": 1}, {"type": "后端开发", "count": 1}, {"type": "AI/算法", "count": 1}, {"type": "前端开发", "count": 1}], "active_companies": [{"name": "星云科技有限公司", "job_count": 2}, {"name": "极光智能实验室", "job_count": 2}], "recommendation_stats": {"algorithm": "hybrid", "collaborative_weight": 0.4, "content_weight": 0.6}}
+$4
+PXAT
+$13
+1774009001937
+*2
+$3
+DEL
+$14
+stats:overview
+*2
+$3
+DEL
+$14
+stats:enhanced
+*2
+$3
+DEL
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+*5
+$3
+SET
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+$2289
+[{"company_id": 2, "job_name": "SRE 运维开发实习生", "job_type": "SRE/运维", "city": "上海", "salary_min": 8000, "salary_max": 12000, "education": "本科", "description": "负责云平台可靠性保障与自动化运维工具开发，参与容器化部署与监控告警体系建设。", "requirement": "1. 熟悉 Linux 操作系统\n2. 了解 Docker/Kubernetes\n3. 掌握 Python 或 Go\n4. 有监控/日志系统使用经验优先", "skill_tags": ["Linux", "Docker", "Kubernetes", "Python"], "status": "active", "deadline": "2026-06-30", "id": 1, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "Java 后端开发实习生", "job_type": "后端开发", "city": "杭州", "salary_min": 9000, "salary_max": 13000, "education": "本科", "description": "参与 AI 平台后端服务开发，负责接口设计、数据库优化与微服务治理。", "requirement": "1. 熟练掌握 Java/Spring Boot\n2. 熟悉 MySQL/Redis\n3. 了解微服务架构\n4. 有实际项目经验优先", "skill_tags": ["Java", "Spring Boot", "MySQL", "Redis", "Docker"], "status": "active", "deadline": "2026-06-30", "id": 2, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "AI 算法实习生", "job_type": "AI/算法", "city": "杭州", "salary_min": 10000, "salary_max": 16000, "education": "本科", "description": "参与模型训练流水线搭建与 AI 服务部署，研究前沿算法并落地到业务场景。", "requirement": "1. 熟练掌握 Python\n2. 熟悉 PyTorch/TensorFlow\n3. 有机器学习项目经验\n4. 了解数据处理流程", "skill_tags": ["Python", "PyTorch", "TensorFlow", "SQL"], "status": "active", "deadline": "2026-06-30", "id": 3, "create_time": "2026-03-20T12:14:34"}, {"company_id": 2, "job_name": "前端开发实习生", "job_type": "前端开发", "city": "上海", "salary_min": 8000, "salary_max": 11000, "education": "本科", "description": "参与内部管理系统与数据可视化平台的前端开发，使用 Vue3 技术栈。", "requirement": "1. 熟悉 HTML/CSS/JavaScript\n2. 掌握 Vue 或 React\n3. 了解 HTTP 协议\n4. 有组件化开发经验优先", "skill_tags": ["Vue", "JavaScript", "HTML", "CSS"], "status": "active", "deadline": "2026-06-30", "id": 4, "create_time": "2026-03-20T12:14:34"}]
+$4
+PXAT
+$13
+1774009161517
+*2
+$3
+DEL
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+*5
+$3
+SET
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+$2289
+[{"company_id": 2, "job_name": "SRE 运维开发实习生", "job_type": "SRE/运维", "city": "上海", "salary_min": 8000, "salary_max": 12000, "education": "本科", "description": "负责云平台可靠性保障与自动化运维工具开发，参与容器化部署与监控告警体系建设。", "requirement": "1. 熟悉 Linux 操作系统\n2. 了解 Docker/Kubernetes\n3. 掌握 Python 或 Go\n4. 有监控/日志系统使用经验优先", "skill_tags": ["Linux", "Docker", "Kubernetes", "Python"], "status": "active", "deadline": "2026-06-30", "id": 1, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "Java 后端开发实习生", "job_type": "后端开发", "city": "杭州", "salary_min": 9000, "salary_max": 13000, "education": "本科", "description": "参与 AI 平台后端服务开发，负责接口设计、数据库优化与微服务治理。", "requirement": "1. 熟练掌握 Java/Spring Boot\n2. 熟悉 MySQL/Redis\n3. 了解微服务架构\n4. 有实际项目经验优先", "skill_tags": ["Java", "Spring Boot", "MySQL", "Redis", "Docker"], "status": "active", "deadline": "2026-06-30", "id": 2, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "AI 算法实习生", "job_type": "AI/算法", "city": "杭州", "salary_min": 10000, "salary_max": 16000, "education": "本科", "description": "参与模型训练流水线搭建与 AI 服务部署，研究前沿算法并落地到业务场景。", "requirement": "1. 熟练掌握 Python\n2. 熟悉 PyTorch/TensorFlow\n3. 有机器学习项目经验\n4. 了解数据处理流程", "skill_tags": ["Python", "PyTorch", "TensorFlow", "SQL"], "status": "active", "deadline": "2026-06-30", "id": 3, "create_time": "2026-03-20T12:14:34"}, {"company_id": 2, "job_name": "前端开发实习生", "job_type": "前端开发", "city": "上海", "salary_min": 8000, "salary_max": 11000, "education": "本科", "description": "参与内部管理系统与数据可视化平台的前端开发，使用 Vue3 技术栈。", "requirement": "1. 熟悉 HTML/CSS/JavaScript\n2. 掌握 Vue 或 React\n3. 了解 HTTP 协议\n4. 有组件化开发经验优先", "skill_tags": ["Vue", "JavaScript", "HTML", "CSS"], "status": "active", "deadline": "2026-06-30", "id": 4, "create_time": "2026-03-20T12:14:34"}]
+$4
+PXAT
+$13
+1774009333966
+*2
+$3
+DEL
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+*5
+$3
+SET
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+$2289
+[{"company_id": 2, "job_name": "SRE 运维开发实习生", "job_type": "SRE/运维", "city": "上海", "salary_min": 8000, "salary_max": 12000, "education": "本科", "description": "负责云平台可靠性保障与自动化运维工具开发，参与容器化部署与监控告警体系建设。", "requirement": "1. 熟悉 Linux 操作系统\n2. 了解 Docker/Kubernetes\n3. 掌握 Python 或 Go\n4. 有监控/日志系统使用经验优先", "skill_tags": ["Linux", "Docker", "Kubernetes", "Python"], "status": "active", "deadline": "2026-06-30", "id": 1, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "Java 后端开发实习生", "job_type": "后端开发", "city": "杭州", "salary_min": 9000, "salary_max": 13000, "education": "本科", "description": "参与 AI 平台后端服务开发，负责接口设计、数据库优化与微服务治理。", "requirement": "1. 熟练掌握 Java/Spring Boot\n2. 熟悉 MySQL/Redis\n3. 了解微服务架构\n4. 有实际项目经验优先", "skill_tags": ["Java", "Spring Boot", "MySQL", "Redis", "Docker"], "status": "active", "deadline": "2026-06-30", "id": 2, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "AI 算法实习生", "job_type": "AI/算法", "city": "杭州", "salary_min": 10000, "salary_max": 16000, "education": "本科", "description": "参与模型训练流水线搭建与 AI 服务部署，研究前沿算法并落地到业务场景。", "requirement": "1. 熟练掌握 Python\n2. 熟悉 PyTorch/TensorFlow\n3. 有机器学习项目经验\n4. 了解数据处理流程", "skill_tags": ["Python", "PyTorch", "TensorFlow", "SQL"], "status": "active", "deadline": "2026-06-30", "id": 3, "create_time": "2026-03-20T12:14:34"}, {"company_id": 2, "job_name": "前端开发实习生", "job_type": "前端开发", "city": "上海", "salary_min": 8000, "salary_max": 11000, "education": "本科", "description": "参与内部管理系统与数据可视化平台的前端开发，使用 Vue3 技术栈。", "requirement": "1. 熟悉 HTML/CSS/JavaScript\n2. 掌握 Vue 或 React\n3. 了解 HTTP 协议\n4. 有组件化开发经验优先", "skill_tags": ["Vue", "JavaScript", "HTML", "CSS"], "status": "active", "deadline": "2026-06-30", "id": 4, "create_time": "2026-03-20T12:14:34"}]
+$4
+PXAT
+$13
+1774009722476
+*2
+$3
+DEL
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+*5
+$3
+SET
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+$2289
+[{"company_id": 2, "job_name": "SRE 运维开发实习生", "job_type": "SRE/运维", "city": "上海", "salary_min": 8000, "salary_max": 12000, "education": "本科", "description": "负责云平台可靠性保障与自动化运维工具开发，参与容器化部署与监控告警体系建设。", "requirement": "1. 熟悉 Linux 操作系统\n2. 了解 Docker/Kubernetes\n3. 掌握 Python 或 Go\n4. 有监控/日志系统使用经验优先", "skill_tags": ["Linux", "Docker", "Kubernetes", "Python"], "status": "active", "deadline": "2026-06-30", "id": 1, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "Java 后端开发实习生", "job_type": "后端开发", "city": "杭州", "salary_min": 9000, "salary_max": 13000, "education": "本科", "description": "参与 AI 平台后端服务开发，负责接口设计、数据库优化与微服务治理。", "requirement": "1. 熟练掌握 Java/Spring Boot\n2. 熟悉 MySQL/Redis\n3. 了解微服务架构\n4. 有实际项目经验优先", "skill_tags": ["Java", "Spring Boot", "MySQL", "Redis", "Docker"], "status": "active", "deadline": "2026-06-30", "id": 2, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "AI 算法实习生", "job_type": "AI/算法", "city": "杭州", "salary_min": 10000, "salary_max": 16000, "education": "本科", "description": "参与模型训练流水线搭建与 AI 服务部署，研究前沿算法并落地到业务场景。", "requirement": "1. 熟练掌握 Python\n2. 熟悉 PyTorch/TensorFlow\n3. 有机器学习项目经验\n4. 了解数据处理流程", "skill_tags": ["Python", "PyTorch", "TensorFlow", "SQL"], "status": "active", "deadline": "2026-06-30", "id": 3, "create_time": "2026-03-20T12:14:34"}, {"company_id": 2, "job_name": "前端开发实习生", "job_type": "前端开发", "city": "上海", "salary_min": 8000, "salary_max": 11000, "education": "本科", "description": "参与内部管理系统与数据可视化平台的前端开发，使用 Vue3 技术栈。", "requirement": "1. 熟悉 HTML/CSS/JavaScript\n2. 掌握 Vue 或 React\n3. 了解 HTTP 协议\n4. 有组件化开发经验优先", "skill_tags": ["Vue", "JavaScript", "HTML", "CSS"], "status": "active", "deadline": "2026-06-30", "id": 4, "create_time": "2026-03-20T12:14:34"}]
+$4
+PXAT
+$13
+1774009845670
+*2
+$3
+DEL
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+*5
+$3
+SET
+$19
+company_analytics:2
+$868
+{"job_stats": [{"job_id": 1, "job_name": "SRE 运维开发实习生", "views": 0, "applications": 2, "conversion_rate": 200.0}, {"job_id": 4, "job_name": "前端开发实习生", "views": 0, "applications": 0, "conversion_rate": 0.0}], "talent_source": [{"type": "school", "name": "重庆邮电大学", "count": 1}, {"type": "school", "name": "重庆大学", "count": 1}, {"type": "major", "name": "计算机科学与技术", "count": 1}, {"type": "major", "name": "软件工程", "count": 1}], "funnel": [{"status": "submitted", "count": 2}, {"status": "viewed", "count": 0}, {"status": "reviewing", "count": 0}, {"status": "to_contact", "count": 0}, {"status": "interview_scheduled", "count": 0}, {"status": "interviewing", "count": 0}, {"status": "accepted", "count": 0}, {"status": "rejected", "count": 0}], "trend": [{"month": "2026-03", "application_count": 2}]}
+$4
+PXAT
+$13
+1774010183465
+*2
+$3
+DEL
+$19
+company_analytics:2
+*5
+$3
+SET
+$19
+company_analytics:2
+$868
+{"job_stats": [{"job_id": 1, "job_name": "SRE 运维开发实习生", "views": 0, "applications": 2, "conversion_rate": 200.0}, {"job_id": 4, "job_name": "前端开发实习生", "views": 0, "applications": 0, "conversion_rate": 0.0}], "talent_source": [{"type": "school", "name": "重庆邮电大学", "count": 1}, {"type": "school", "name": "重庆大学", "count": 1}, {"type": "major", "name": "计算机科学与技术", "count": 1}, {"type": "major", "name": "软件工程", "count": 1}], "funnel": [{"status": "submitted", "count": 2}, {"status": "viewed", "count": 0}, {"status": "reviewing", "count": 0}, {"status": "to_contact", "count": 0}, {"status": "interview_scheduled", "count": 0}, {"status": "interviewing", "count": 0}, {"status": "accepted", "count": 0}, {"status": "rejected", "count": 0}], "trend": [{"month": "2026-03", "application_count": 2}]}
+$4
+PXAT
+$13
+1774078998570
+*2
+$3
+DEL
+$19
+company_analytics:2
+*5
+$3
+SET
+$19
+company_analytics:2
+$868
+{"job_stats": [{"job_id": 1, "job_name": "SRE 运维开发实习生", "views": 0, "applications": 2, "conversion_rate": 200.0}, {"job_id": 4, "job_name": "前端开发实习生", "views": 0, "applications": 0, "conversion_rate": 0.0}], "talent_source": [{"type": "school", "name": "重庆邮电大学", "count": 1}, {"type": "school", "name": "重庆大学", "count": 1}, {"type": "major", "name": "计算机科学与技术", "count": 1}, {"type": "major", "name": "软件工程", "count": 1}], "funnel": [{"status": "submitted", "count": 2}, {"status": "viewed", "count": 0}, {"status": "reviewing", "count": 0}, {"status": "to_contact", "count": 0}, {"status": "interview_scheduled", "count": 0}, {"status": "interviewing", "count": 0}, {"status": "accepted", "count": 0}, {"status": "rejected", "count": 0}], "trend": [{"month": "2026-03", "application_count": 2}]}
+$4
+PXAT
+$13
+1774079150323
+*2
+$3
+DEL
+$19
+company_analytics:2
+*5
+$3
+SET
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+$2289
+[{"company_id": 2, "job_name": "SRE 运维开发实习生", "job_type": "SRE/运维", "city": "上海", "salary_min": 8000, "salary_max": 12000, "education": "本科", "description": "负责云平台可靠性保障与自动化运维工具开发，参与容器化部署与监控告警体系建设。", "requirement": "1. 熟悉 Linux 操作系统\n2. 了解 Docker/Kubernetes\n3. 掌握 Python 或 Go\n4. 有监控/日志系统使用经验优先", "skill_tags": ["Linux", "Docker", "Kubernetes", "Python"], "status": "active", "deadline": "2026-06-30", "id": 1, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "Java 后端开发实习生", "job_type": "后端开发", "city": "杭州", "salary_min": 9000, "salary_max": 13000, "education": "本科", "description": "参与 AI 平台后端服务开发，负责接口设计、数据库优化与微服务治理。", "requirement": "1. 熟练掌握 Java/Spring Boot\n2. 熟悉 MySQL/Redis\n3. 了解微服务架构\n4. 有实际项目经验优先", "skill_tags": ["Java", "Spring Boot", "MySQL", "Redis", "Docker"], "status": "active", "deadline": "2026-06-30", "id": 2, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "AI 算法实习生", "job_type": "AI/算法", "city": "杭州", "salary_min": 10000, "salary_max": 16000, "education": "本科", "description": "参与模型训练流水线搭建与 AI 服务部署，研究前沿算法并落地到业务场景。", "requirement": "1. 熟练掌握 Python\n2. 熟悉 PyTorch/TensorFlow\n3. 有机器学习项目经验\n4. 了解数据处理流程", "skill_tags": ["Python", "PyTorch", "TensorFlow", "SQL"], "status": "active", "deadline": "2026-06-30", "id": 3, "create_time": "2026-03-20T12:14:34"}, {"company_id": 2, "job_name": "前端开发实习生", "job_type": "前端开发", "city": "上海", "salary_min": 8000, "salary_max": 11000, "education": "本科", "description": "参与内部管理系统与数据可视化平台的前端开发，使用 Vue3 技术栈。", "requirement": "1. 熟悉 HTML/CSS/JavaScript\n2. 掌握 Vue 或 React\n3. 了解 HTTP 协议\n4. 有组件化开发经验优先", "skill_tags": ["Vue", "JavaScript", "HTML", "CSS"], "status": "active", "deadline": "2026-06-30", "id": 4, "create_time": "2026-03-20T12:14:34"}]
+$4
+PXAT
+$13
+1774079780475
+*2
+$3
+DEL
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+*5
+$3
+SET
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+$2289
+[{"company_id": 2, "job_name": "SRE 运维开发实习生", "job_type": "SRE/运维", "city": "上海", "salary_min": 8000, "salary_max": 12000, "education": "本科", "description": "负责云平台可靠性保障与自动化运维工具开发，参与容器化部署与监控告警体系建设。", "requirement": "1. 熟悉 Linux 操作系统\n2. 了解 Docker/Kubernetes\n3. 掌握 Python 或 Go\n4. 有监控/日志系统使用经验优先", "skill_tags": ["Linux", "Docker", "Kubernetes", "Python"], "status": "active", "deadline": "2026-06-30", "id": 1, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "Java 后端开发实习生", "job_type": "后端开发", "city": "杭州", "salary_min": 9000, "salary_max": 13000, "education": "本科", "description": "参与 AI 平台后端服务开发，负责接口设计、数据库优化与微服务治理。", "requirement": "1. 熟练掌握 Java/Spring Boot\n2. 熟悉 MySQL/Redis\n3. 了解微服务架构\n4. 有实际项目经验优先", "skill_tags": ["Java", "Spring Boot", "MySQL", "Redis", "Docker"], "status": "active", "deadline": "2026-06-30", "id": 2, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "AI 算法实习生", "job_type": "AI/算法", "city": "杭州", "salary_min": 10000, "salary_max": 16000, "education": "本科", "description": "参与模型训练流水线搭建与 AI 服务部署，研究前沿算法并落地到业务场景。", "requirement": "1. 熟练掌握 Python\n2. 熟悉 PyTorch/TensorFlow\n3. 有机器学习项目经验\n4. 了解数据处理流程", "skill_tags": ["Python", "PyTorch", "TensorFlow", "SQL"], "status": "active", "deadline": "2026-06-30", "id": 3, "create_time": "2026-03-20T12:14:34"}, {"company_id": 2, "job_name": "前端开发实习生", "job_type": "前端开发", "city": "上海", "salary_min": 8000, "salary_max": 11000, "education": "本科", "description": "参与内部管理系统与数据可视化平台的前端开发，使用 Vue3 技术栈。", "requirement": "1. 熟悉 HTML/CSS/JavaScript\n2. 掌握 Vue 或 React\n3. 了解 HTTP 协议\n4. 有组件化开发经验优先", "skill_tags": ["Vue", "JavaScript", "HTML", "CSS"], "status": "active", "deadline": "2026-06-30", "id": 4, "create_time": "2026-03-20T12:14:34"}]
+$4
+PXAT
+$13
+1774079921129
+*2
+$3
+DEL
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+*5
+$3
+SET
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+$2289
+[{"company_id": 2, "job_name": "SRE 运维开发实习生", "job_type": "SRE/运维", "city": "上海", "salary_min": 8000, "salary_max": 12000, "education": "本科", "description": "负责云平台可靠性保障与自动化运维工具开发，参与容器化部署与监控告警体系建设。", "requirement": "1. 熟悉 Linux 操作系统\n2. 了解 Docker/Kubernetes\n3. 掌握 Python 或 Go\n4. 有监控/日志系统使用经验优先", "skill_tags": ["Linux", "Docker", "Kubernetes", "Python"], "status": "active", "deadline": "2026-06-30", "id": 1, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "Java 后端开发实习生", "job_type": "后端开发", "city": "杭州", "salary_min": 9000, "salary_max": 13000, "education": "本科", "description": "参与 AI 平台后端服务开发，负责接口设计、数据库优化与微服务治理。", "requirement": "1. 熟练掌握 Java/Spring Boot\n2. 熟悉 MySQL/Redis\n3. 了解微服务架构\n4. 有实际项目经验优先", "skill_tags": ["Java", "Spring Boot", "MySQL", "Redis", "Docker"], "status": "active", "deadline": "2026-06-30", "id": 2, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "AI 算法实习生", "job_type": "AI/算法", "city": "杭州", "salary_min": 10000, "salary_max": 16000, "education": "本科", "description": "参与模型训练流水线搭建与 AI 服务部署，研究前沿算法并落地到业务场景。", "requirement": "1. 熟练掌握 Python\n2. 熟悉 PyTorch/TensorFlow\n3. 有机器学习项目经验\n4. 了解数据处理流程", "skill_tags": ["Python", "PyTorch", "TensorFlow", "SQL"], "status": "active", "deadline": "2026-06-30", "id": 3, "create_time": "2026-03-20T12:14:34"}, {"company_id": 2, "job_name": "前端开发实习生", "job_type": "前端开发", "city": "上海", "salary_min": 8000, "salary_max": 11000, "education": "本科", "description": "参与内部管理系统与数据可视化平台的前端开发，使用 Vue3 技术栈。", "requirement": "1. 熟悉 HTML/CSS/JavaScript\n2. 掌握 Vue 或 React\n3. 了解 HTTP 协议\n4. 有组件化开发经验优先", "skill_tags": ["Vue", "JavaScript", "HTML", "CSS"], "status": "active", "deadline": "2026-06-30", "id": 4, "create_time": "2026-03-20T12:14:34"}]
+$4
+PXAT
+$13
+1774080033094
+*2
+$3
+DEL
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+*5
+$3
+SET
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+$2289
+[{"company_id": 2, "job_name": "SRE 运维开发实习生", "job_type": "SRE/运维", "city": "上海", "salary_min": 8000, "salary_max": 12000, "education": "本科", "description": "负责云平台可靠性保障与自动化运维工具开发，参与容器化部署与监控告警体系建设。", "requirement": "1. 熟悉 Linux 操作系统\n2. 了解 Docker/Kubernetes\n3. 掌握 Python 或 Go\n4. 有监控/日志系统使用经验优先", "skill_tags": ["Linux", "Docker", "Kubernetes", "Python"], "status": "active", "deadline": "2026-06-30", "id": 1, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "Java 后端开发实习生", "job_type": "后端开发", "city": "杭州", "salary_min": 9000, "salary_max": 13000, "education": "本科", "description": "参与 AI 平台后端服务开发，负责接口设计、数据库优化与微服务治理。", "requirement": "1. 熟练掌握 Java/Spring Boot\n2. 熟悉 MySQL/Redis\n3. 了解微服务架构\n4. 有实际项目经验优先", "skill_tags": ["Java", "Spring Boot", "MySQL", "Redis", "Docker"], "status": "active", "deadline": "2026-06-30", "id": 2, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "AI 算法实习生", "job_type": "AI/算法", "city": "杭州", "salary_min": 10000, "salary_max": 16000, "education": "本科", "description": "参与模型训练流水线搭建与 AI 服务部署，研究前沿算法并落地到业务场景。", "requirement": "1. 熟练掌握 Python\n2. 熟悉 PyTorch/TensorFlow\n3. 有机器学习项目经验\n4. 了解数据处理流程", "skill_tags": ["Python", "PyTorch", "TensorFlow", "SQL"], "status": "active", "deadline": "2026-06-30", "id": 3, "create_time": "2026-03-20T12:14:34"}, {"company_id": 2, "job_name": "前端开发实习生", "job_type": "前端开发", "city": "上海", "salary_min": 8000, "salary_max": 11000, "education": "本科", "description": "参与内部管理系统与数据可视化平台的前端开发，使用 Vue3 技术栈。", "requirement": "1. 熟悉 HTML/CSS/JavaScript\n2. 掌握 Vue 或 React\n3. 了解 HTTP 协议\n4. 有组件化开发经验优先", "skill_tags": ["Vue", "JavaScript", "HTML", "CSS"], "status": "active", "deadline": "2026-06-30", "id": 4, "create_time": "2026-03-20T12:14:34"}]
+$4
+PXAT
+$13
+1774080209390
+*2
+$3
+DEL
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+*5
+$3
+SET
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+$2289
+[{"company_id": 2, "job_name": "SRE 运维开发实习生", "job_type": "SRE/运维", "city": "上海", "salary_min": 8000, "salary_max": 12000, "education": "本科", "description": "负责云平台可靠性保障与自动化运维工具开发，参与容器化部署与监控告警体系建设。", "requirement": "1. 熟悉 Linux 操作系统\n2. 了解 Docker/Kubernetes\n3. 掌握 Python 或 Go\n4. 有监控/日志系统使用经验优先", "skill_tags": ["Linux", "Docker", "Kubernetes", "Python"], "status": "active", "deadline": "2026-06-30", "id": 1, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "Java 后端开发实习生", "job_type": "后端开发", "city": "杭州", "salary_min": 9000, "salary_max": 13000, "education": "本科", "description": "参与 AI 平台后端服务开发，负责接口设计、数据库优化与微服务治理。", "requirement": "1. 熟练掌握 Java/Spring Boot\n2. 熟悉 MySQL/Redis\n3. 了解微服务架构\n4. 有实际项目经验优先", "skill_tags": ["Java", "Spring Boot", "MySQL", "Redis", "Docker"], "status": "active", "deadline": "2026-06-30", "id": 2, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "AI 算法实习生", "job_type": "AI/算法", "city": "杭州", "salary_min": 10000, "salary_max": 16000, "education": "本科", "description": "参与模型训练流水线搭建与 AI 服务部署，研究前沿算法并落地到业务场景。", "requirement": "1. 熟练掌握 Python\n2. 熟悉 PyTorch/TensorFlow\n3. 有机器学习项目经验\n4. 了解数据处理流程", "skill_tags": ["Python", "PyTorch", "TensorFlow", "SQL"], "status": "active", "deadline": "2026-06-30", "id": 3, "create_time": "2026-03-20T12:14:34"}, {"company_id": 2, "job_name": "前端开发实习生", "job_type": "前端开发", "city": "上海", "salary_min": 8000, "salary_max": 11000, "education": "本科", "description": "参与内部管理系统与数据可视化平台的前端开发，使用 Vue3 技术栈。", "requirement": "1. 熟悉 HTML/CSS/JavaScript\n2. 掌握 Vue 或 React\n3. 了解 HTTP 协议\n4. 有组件化开发经验优先", "skill_tags": ["Vue", "JavaScript", "HTML", "CSS"], "status": "active", "deadline": "2026-06-30", "id": 4, "create_time": "2026-03-20T12:14:34"}]
+$4
+PXAT
+$13
+1774081105728
+*2
+$3
+DEL
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+*5
+$3
+SET
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+$2289
+[{"company_id": 2, "job_name": "SRE 运维开发实习生", "job_type": "SRE/运维", "city": "上海", "salary_min": 8000, "salary_max": 12000, "education": "本科", "description": "负责云平台可靠性保障与自动化运维工具开发，参与容器化部署与监控告警体系建设。", "requirement": "1. 熟悉 Linux 操作系统\n2. 了解 Docker/Kubernetes\n3. 掌握 Python 或 Go\n4. 有监控/日志系统使用经验优先", "skill_tags": ["Linux", "Docker", "Kubernetes", "Python"], "status": "active", "deadline": "2026-06-30", "id": 1, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "Java 后端开发实习生", "job_type": "后端开发", "city": "杭州", "salary_min": 9000, "salary_max": 13000, "education": "本科", "description": "参与 AI 平台后端服务开发，负责接口设计、数据库优化与微服务治理。", "requirement": "1. 熟练掌握 Java/Spring Boot\n2. 熟悉 MySQL/Redis\n3. 了解微服务架构\n4. 有实际项目经验优先", "skill_tags": ["Java", "Spring Boot", "MySQL", "Redis", "Docker"], "status": "active", "deadline": "2026-06-30", "id": 2, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "AI 算法实习生", "job_type": "AI/算法", "city": "杭州", "salary_min": 10000, "salary_max": 16000, "education": "本科", "description": "参与模型训练流水线搭建与 AI 服务部署，研究前沿算法并落地到业务场景。", "requirement": "1. 熟练掌握 Python\n2. 熟悉 PyTorch/TensorFlow\n3. 有机器学习项目经验\n4. 了解数据处理流程", "skill_tags": ["Python", "PyTorch", "TensorFlow", "SQL"], "status": "active", "deadline": "2026-06-30", "id": 3, "create_time": "2026-03-20T12:14:34"}, {"company_id": 2, "job_name": "前端开发实习生", "job_type": "前端开发", "city": "上海", "salary_min": 8000, "salary_max": 11000, "education": "本科", "description": "参与内部管理系统与数据可视化平台的前端开发，使用 Vue3 技术栈。", "requirement": "1. 熟悉 HTML/CSS/JavaScript\n2. 掌握 Vue 或 React\n3. 了解 HTTP 协议\n4. 有组件化开发经验优先", "skill_tags": ["Vue", "JavaScript", "HTML", "CSS"], "status": "active", "deadline": "2026-06-30", "id": 4, "create_time": "2026-03-20T12:14:34"}]
+$4
+PXAT
+$13
+1774081280599
+*2
+$3
+DEL
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+*5
+$3
+SET
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+$2289
+[{"company_id": 2, "job_name": "SRE 运维开发实习生", "job_type": "SRE/运维", "city": "上海", "salary_min": 8000, "salary_max": 12000, "education": "本科", "description": "负责云平台可靠性保障与自动化运维工具开发，参与容器化部署与监控告警体系建设。", "requirement": "1. 熟悉 Linux 操作系统\n2. 了解 Docker/Kubernetes\n3. 掌握 Python 或 Go\n4. 有监控/日志系统使用经验优先", "skill_tags": ["Linux", "Docker", "Kubernetes", "Python"], "status": "active", "deadline": "2026-06-30", "id": 1, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "Java 后端开发实习生", "job_type": "后端开发", "city": "杭州", "salary_min": 9000, "salary_max": 13000, "education": "本科", "description": "参与 AI 平台后端服务开发，负责接口设计、数据库优化与微服务治理。", "requirement": "1. 熟练掌握 Java/Spring Boot\n2. 熟悉 MySQL/Redis\n3. 了解微服务架构\n4. 有实际项目经验优先", "skill_tags": ["Java", "Spring Boot", "MySQL", "Redis", "Docker"], "status": "active", "deadline": "2026-06-30", "id": 2, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "AI 算法实习生", "job_type": "AI/算法", "city": "杭州", "salary_min": 10000, "salary_max": 16000, "education": "本科", "description": "参与模型训练流水线搭建与 AI 服务部署，研究前沿算法并落地到业务场景。", "requirement": "1. 熟练掌握 Python\n2. 熟悉 PyTorch/TensorFlow\n3. 有机器学习项目经验\n4. 了解数据处理流程", "skill_tags": ["Python", "PyTorch", "TensorFlow", "SQL"], "status": "active", "deadline": "2026-06-30", "id": 3, "create_time": "2026-03-20T12:14:34"}, {"company_id": 2, "job_name": "前端开发实习生", "job_type": "前端开发", "city": "上海", "salary_min": 8000, "salary_max": 11000, "education": "本科", "description": "参与内部管理系统与数据可视化平台的前端开发，使用 Vue3 技术栈。", "requirement": "1. 熟悉 HTML/CSS/JavaScript\n2. 掌握 Vue 或 React\n3. 了解 HTTP 协议\n4. 有组件化开发经验优先", "skill_tags": ["Vue", "JavaScript", "HTML", "CSS"], "status": "active", "deadline": "2026-06-30", "id": 4, "create_time": "2026-03-20T12:14:34"}]
+$4
+PXAT
+$13
+1774081458745
+*2
+$3
+DEL
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+*5
+$3
+SET
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+$2289
+[{"company_id": 2, "job_name": "SRE 运维开发实习生", "job_type": "SRE/运维", "city": "上海", "salary_min": 8000, "salary_max": 12000, "education": "本科", "description": "负责云平台可靠性保障与自动化运维工具开发，参与容器化部署与监控告警体系建设。", "requirement": "1. 熟悉 Linux 操作系统\n2. 了解 Docker/Kubernetes\n3. 掌握 Python 或 Go\n4. 有监控/日志系统使用经验优先", "skill_tags": ["Linux", "Docker", "Kubernetes", "Python"], "status": "active", "deadline": "2026-06-30", "id": 1, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "Java 后端开发实习生", "job_type": "后端开发", "city": "杭州", "salary_min": 9000, "salary_max": 13000, "education": "本科", "description": "参与 AI 平台后端服务开发，负责接口设计、数据库优化与微服务治理。", "requirement": "1. 熟练掌握 Java/Spring Boot\n2. 熟悉 MySQL/Redis\n3. 了解微服务架构\n4. 有实际项目经验优先", "skill_tags": ["Java", "Spring Boot", "MySQL", "Redis", "Docker"], "status": "active", "deadline": "2026-06-30", "id": 2, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "AI 算法实习生", "job_type": "AI/算法", "city": "杭州", "salary_min": 10000, "salary_max": 16000, "education": "本科", "description": "参与模型训练流水线搭建与 AI 服务部署，研究前沿算法并落地到业务场景。", "requirement": "1. 熟练掌握 Python\n2. 熟悉 PyTorch/TensorFlow\n3. 有机器学习项目经验\n4. 了解数据处理流程", "skill_tags": ["Python", "PyTorch", "TensorFlow", "SQL"], "status": "active", "deadline": "2026-06-30", "id": 3, "create_time": "2026-03-20T12:14:34"}, {"company_id": 2, "job_name": "前端开发实习生", "job_type": "前端开发", "city": "上海", "salary_min": 8000, "salary_max": 11000, "education": "本科", "description": "参与内部管理系统与数据可视化平台的前端开发，使用 Vue3 技术栈。", "requirement": "1. 熟悉 HTML/CSS/JavaScript\n2. 掌握 Vue 或 React\n3. 了解 HTTP 协议\n4. 有组件化开发经验优先", "skill_tags": ["Vue", "JavaScript", "HTML", "CSS"], "status": "active", "deadline": "2026-06-30", "id": 4, "create_time": "2026-03-20T12:14:34"}]
+$4
+PXAT
+$13
+1774081573716
+*2
+$3
+DEL
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+*5
+$3
+SET
+$19
+student_analytics:4
+$711
+{"skill_competitiveness": [{"skill": "Python", "percentile": 33, "holders": 2}, {"skill": "Linux", "percentile": 67, "holders": 1}, {"skill": "Docker", "percentile": 0, "holders": 3}, {"skill": "Kubernetes", "percentile": 67, "holders": 1}, {"skill": "MySQL", "percentile": 33, "holders": 2}], "salary_benchmark": {"min": 0, "max": 0, "avg_min": 0, "avg_max": 0, "sample_count": 0}, "market_trends": [{"job_type": "SRE/运维", "count": 1}, {"job_type": "后端开发", "count": 1}, {"job_type": "AI/算法", "count": 1}, {"job_type": "前端开发", "count": 1}], "application_stats": {"total_applied": 2, "viewed": 0, "interviewing": 1, "offered": 0, "rejected": 0, "interview_rate": 50.0, "offer_rate": 0.0}}
+$4
+PXAT
+$13
+1774081875577
+*2
+$3
+DEL
+$19
+student_analytics:4
+*5
+$3
+SET
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+$2289
+[{"company_id": 2, "job_name": "SRE 运维开发实习生", "job_type": "SRE/运维", "city": "上海", "salary_min": 8000, "salary_max": 12000, "education": "本科", "description": "负责云平台可靠性保障与自动化运维工具开发，参与容器化部署与监控告警体系建设。", "requirement": "1. 熟悉 Linux 操作系统\n2. 了解 Docker/Kubernetes\n3. 掌握 Python 或 Go\n4. 有监控/日志系统使用经验优先", "skill_tags": ["Linux", "Docker", "Kubernetes", "Python"], "status": "active", "deadline": "2026-06-30", "id": 1, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "Java 后端开发实习生", "job_type": "后端开发", "city": "杭州", "salary_min": 9000, "salary_max": 13000, "education": "本科", "description": "参与 AI 平台后端服务开发，负责接口设计、数据库优化与微服务治理。", "requirement": "1. 熟练掌握 Java/Spring Boot\n2. 熟悉 MySQL/Redis\n3. 了解微服务架构\n4. 有实际项目经验优先", "skill_tags": ["Java", "Spring Boot", "MySQL", "Redis", "Docker"], "status": "active", "deadline": "2026-06-30", "id": 2, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "AI 算法实习生", "job_type": "AI/算法", "city": "杭州", "salary_min": 10000, "salary_max": 16000, "education": "本科", "description": "参与模型训练流水线搭建与 AI 服务部署，研究前沿算法并落地到业务场景。", "requirement": "1. 熟练掌握 Python\n2. 熟悉 PyTorch/TensorFlow\n3. 有机器学习项目经验\n4. 了解数据处理流程", "skill_tags": ["Python", "PyTorch", "TensorFlow", "SQL"], "status": "active", "deadline": "2026-06-30", "id": 3, "create_time": "2026-03-20T12:14:34"}, {"company_id": 2, "job_name": "前端开发实习生", "job_type": "前端开发", "city": "上海", "salary_min": 8000, "salary_max": 11000, "education": "本科", "description": "参与内部管理系统与数据可视化平台的前端开发，使用 Vue3 技术栈。", "requirement": "1. 熟悉 HTML/CSS/JavaScript\n2. 掌握 Vue 或 React\n3. 了解 HTTP 协议\n4. 有组件化开发经验优先", "skill_tags": ["Vue", "JavaScript", "HTML", "CSS"], "status": "active", "deadline": "2026-06-30", "id": 4, "create_time": "2026-03-20T12:14:34"}]
+$4
+PXAT
+$13
+1774082784325
+*2
+$3
+DEL
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+*5
+$3
+SET
+$19
+student_analytics:4
+$711
+{"skill_competitiveness": [{"skill": "Python", "percentile": 33, "holders": 2}, {"skill": "Linux", "percentile": 67, "holders": 1}, {"skill": "Docker", "percentile": 0, "holders": 3}, {"skill": "Kubernetes", "percentile": 67, "holders": 1}, {"skill": "MySQL", "percentile": 33, "holders": 2}], "salary_benchmark": {"min": 0, "max": 0, "avg_min": 0, "avg_max": 0, "sample_count": 0}, "market_trends": [{"job_type": "SRE/运维", "count": 1}, {"job_type": "后端开发", "count": 1}, {"job_type": "AI/算法", "count": 1}, {"job_type": "前端开发", "count": 1}], "application_stats": {"total_applied": 2, "viewed": 0, "interviewing": 1, "offered": 0, "rejected": 0, "interview_rate": 50.0, "offer_rate": 0.0}}
+$4
+PXAT
+$13
+1774106969216
+*5
+$3
+SET
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+$2289
+[{"company_id": 2, "job_name": "SRE 运维开发实习生", "job_type": "SRE/运维", "city": "上海", "salary_min": 8000, "salary_max": 12000, "education": "本科", "description": "负责云平台可靠性保障与自动化运维工具开发，参与容器化部署与监控告警体系建设。", "requirement": "1. 熟悉 Linux 操作系统\n2. 了解 Docker/Kubernetes\n3. 掌握 Python 或 Go\n4. 有监控/日志系统使用经验优先", "skill_tags": ["Linux", "Docker", "Kubernetes", "Python"], "status": "active", "deadline": "2026-06-30", "id": 1, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "Java 后端开发实习生", "job_type": "后端开发", "city": "杭州", "salary_min": 9000, "salary_max": 13000, "education": "本科", "description": "参与 AI 平台后端服务开发，负责接口设计、数据库优化与微服务治理。", "requirement": "1. 熟练掌握 Java/Spring Boot\n2. 熟悉 MySQL/Redis\n3. 了解微服务架构\n4. 有实际项目经验优先", "skill_tags": ["Java", "Spring Boot", "MySQL", "Redis", "Docker"], "status": "active", "deadline": "2026-06-30", "id": 2, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "AI 算法实习生", "job_type": "AI/算法", "city": "杭州", "salary_min": 10000, "salary_max": 16000, "education": "本科", "description": "参与模型训练流水线搭建与 AI 服务部署，研究前沿算法并落地到业务场景。", "requirement": "1. 熟练掌握 Python\n2. 熟悉 PyTorch/TensorFlow\n3. 有机器学习项目经验\n4. 了解数据处理流程", "skill_tags": ["Python", "PyTorch", "TensorFlow", "SQL"], "status": "active", "deadline": "2026-06-30", "id": 3, "create_time": "2026-03-20T12:14:34"}, {"company_id": 2, "job_name": "前端开发实习生", "job_type": "前端开发", "city": "上海", "salary_min": 8000, "salary_max": 11000, "education": "本科", "description": "参与内部管理系统与数据可视化平台的前端开发，使用 Vue3 技术栈。", "requirement": "1. 熟悉 HTML/CSS/JavaScript\n2. 掌握 Vue 或 React\n3. 了解 HTTP 协议\n4. 有组件化开发经验优先", "skill_tags": ["Vue", "JavaScript", "HTML", "CSS"], "status": "active", "deadline": "2026-06-30", "id": 4, "create_time": "2026-03-20T12:14:34"}]
+$4
+PXAT
+$13
+1774107003769
+*5
+$3
+SET
+$19
+company_analytics:2
+$868
+{"job_stats": [{"job_id": 1, "job_name": "SRE 运维开发实习生", "views": 2, "applications": 2, "conversion_rate": 100.0}, {"job_id": 4, "job_name": "前端开发实习生", "views": 0, "applications": 0, "conversion_rate": 0.0}], "talent_source": [{"type": "school", "name": "重庆邮电大学", "count": 1}, {"type": "school", "name": "重庆大学", "count": 1}, {"type": "major", "name": "计算机科学与技术", "count": 1}, {"type": "major", "name": "软件工程", "count": 1}], "funnel": [{"status": "submitted", "count": 0}, {"status": "viewed", "count": 0}, {"status": "reviewing", "count": 0}, {"status": "to_contact", "count": 0}, {"status": "interview_scheduled", "count": 0}, {"status": "interviewing", "count": 1}, {"status": "accepted", "count": 1}, {"status": "rejected", "count": 0}], "trend": [{"month": "2026-03", "application_count": 2}]}
+$4
+PXAT
+$13
+1774107020977
+*2
+$3
+DEL
+$19
+student_analytics:4
+*2
+$3
+DEL
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+*2
+$3
+DEL
+$19
+company_analytics:2
+*5
+$3
+SET
+$14
+stats:overview
+$80
+{"student_total": 3, "company_total": 2, "job_total": 4, "application_total": 6}
+$4
+PXAT
+$13
+1774107188479
+*5
+$3
+SET
+$14
+stats:enhanced
+$474
+{"student_total": 3, "company_total": 2, "job_total": 4, "application_total": 6, "hot_job_types": [{"type": "SRE/运维", "count": 1}, {"type": "后端开发", "count": 1}, {"type": "AI/算法", "count": 1}, {"type": "前端开发", "count": 1}], "active_companies": [{"name": "星云科技有限公司", "job_count": 2}, {"name": "极光智能实验室", "job_count": 2}], "recommendation_stats": {"algorithm": "hybrid", "collaborative_weight": 0.4, "content_weight": 0.6}}
+$4
+PXAT
+$13
+1774107208303
+*5
+$3
+SET
+$26
+stats:employment_analytics
+$1221
+{"major_heatmap": [{"major": "计算机科学与技术", "application_count": 2}, {"major": "软件工程", "application_count": 2}, {"major": "人工智能", "application_count": 2}], "job_type_popularity": [{"job_type": "后端开发", "application_count": 3}, {"job_type": "SRE/运维", "application_count": 2}, {"job_type": "AI/算法", "application_count": 1}], "conversion_funnel": [{"status": "submitted", "count": 1}, {"status": "reviewing", "count": 1}, {"status": "to_contact", "count": 1}, {"status": "accepted", "count": 2}, {"status": "rejected", "count": 0}, {"status": "withdrawn", "count": 0}], "skill_gap": [{"skill": "Java", "missing_count": 2}, {"skill": "Spring Boot", "missing_count": 2}, {"skill": "Redis", "missing_count": 2}, {"skill": "Linux", "missing_count": 1}, {"skill": "Kubernetes", "missing_count": 1}, {"skill": "Python", "missing_count": 1}, {"skill": "MySQL", "missing_count": 1}], "company_activity": [{"company_name": "极光智能实验室", "total_received": 4, "total_reviewed": 3, "response_rate": 0.75}, {"company_name": "星云科技有限公司", "total_received": 2, "total_reviewed": 1, "response_rate": 0.5}], "monthly_trend": [{"month": "2026-03", "application_count": 6}]}
+$4
+PXAT
+$13
+1774107213838
+*2
+$3
+DEL
+$14
+stats:overview
+*2
+$3
+DEL
+$14
+stats:enhanced
+*5
+$3
+SET
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+$2289
+[{"company_id": 2, "job_name": "SRE 运维开发实习生", "job_type": "SRE/运维", "city": "上海", "salary_min": 8000, "salary_max": 12000, "education": "本科", "description": "负责云平台可靠性保障与自动化运维工具开发，参与容器化部署与监控告警体系建设。", "requirement": "1. 熟悉 Linux 操作系统\n2. 了解 Docker/Kubernetes\n3. 掌握 Python 或 Go\n4. 有监控/日志系统使用经验优先", "skill_tags": ["Linux", "Docker", "Kubernetes", "Python"], "status": "active", "deadline": "2026-06-30", "id": 1, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "Java 后端开发实习生", "job_type": "后端开发", "city": "杭州", "salary_min": 9000, "salary_max": 13000, "education": "本科", "description": "参与 AI 平台后端服务开发，负责接口设计、数据库优化与微服务治理。", "requirement": "1. 熟练掌握 Java/Spring Boot\n2. 熟悉 MySQL/Redis\n3. 了解微服务架构\n4. 有实际项目经验优先", "skill_tags": ["Java", "Spring Boot", "MySQL", "Redis", "Docker"], "status": "active", "deadline": "2026-06-30", "id": 2, "create_time": "2026-03-20T12:14:34"}, {"company_id": 3, "job_name": "AI 算法实习生", "job_type": "AI/算法", "city": "杭州", "salary_min": 10000, "salary_max": 16000, "education": "本科", "description": "参与模型训练流水线搭建与 AI 服务部署，研究前沿算法并落地到业务场景。", "requirement": "1. 熟练掌握 Python\n2. 熟悉 PyTorch/TensorFlow\n3. 有机器学习项目经验\n4. 了解数据处理流程", "skill_tags": ["Python", "PyTorch", "TensorFlow", "SQL"], "status": "active", "deadline": "2026-06-30", "id": 3, "create_time": "2026-03-20T12:14:34"}, {"company_id": 2, "job_name": "前端开发实习生", "job_type": "前端开发", "city": "上海", "salary_min": 8000, "salary_max": 11000, "education": "本科", "description": "参与内部管理系统与数据可视化平台的前端开发，使用 Vue3 技术栈。", "requirement": "1. 熟悉 HTML/CSS/JavaScript\n2. 掌握 Vue 或 React\n3. 了解 HTTP 协议\n4. 有组件化开发经验优先", "skill_tags": ["Vue", "JavaScript", "HTML", "CSS"], "status": "active", "deadline": "2026-06-30", "id": 4, "create_time": "2026-03-20T12:14:34"}]
+$4
+PXAT
+$13
+1774107298952
+*2
+$3
+DEL
+$26
+stats:employment_analytics
+*5
+$3
+SET
+$14
+stats:overview
+$80
+{"student_total": 3, "company_total": 2, "job_total": 4, "application_total": 6}
+$4
+PXAT
+$13
+1774107290523
+*2
+$3
+DEL
+$14
+stats:overview
+*2
+$3
+DEL
+$129
+jobs:list:{"city": null, "company": null, "education": null, "industry": null, "keyword": null, "salary_min": null, "sort": null}
+*5
+$3
+SET
+$14
+stats:overview
+$80
+{"student_total": 3, "company_total": 2, "job_total": 4, "application_total": 6}
+$4
+PXAT
+$13
+1774107385034
+*2
+$3
+DEL
+$14
+stats:overview
+*5
+$3
+SET
+$14
+stats:overview
+$80
+{"student_total": 3, "company_total": 2, "job_total": 4, "application_total": 6}
+$4
+PXAT
+$13
+1774107422695
+*2
+$3
+DEL
+$14
+stats:overview
