@@ -1,0 +1,8 @@
+﻿id,4727185
+apiKey,sk-b4a82790efaf493fba048c20c6a8de12
+apiHost,ws-i26zhxx00cp7wcva.cn-beijing.maas.aliyuncs.com
+openAiCompatible,https://ws-i26zhxx00cp7wcva.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+dashScope,https://ws-i26zhxx00cp7wcva.cn-beijing.maas.aliyuncs.com/api/v1
+description,专门用于求职招聘
+workspaceName,默认业务空间
+workspaceId,ws-i26zhxx00cp7wcva

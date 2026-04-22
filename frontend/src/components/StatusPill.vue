@@ -37,6 +37,7 @@ const tone = computed(() => {
   if (props.kind === 'verify') {
     if (props.status === 'approved') return 'success';
     if (props.status === 'rejected') return 'danger';
+    if (props.status === 'student_rejected') return 'muted';
     return 'pending';
   }
   if (props.status === 'accepted') return 'success';

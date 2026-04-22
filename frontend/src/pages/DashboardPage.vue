@@ -21,6 +21,13 @@
           <p class="mono">{{ item.label }}</p>
           <strong>{{ item.value }}</strong>
           <span>{{ item.tip }}</span>
+          <button
+            v-if="item.action"
+            class="btn btn-outline kpi-btn"
+            @click="go(item.path, item.query)"
+          >
+            {{ item.action }}
+          </button>
         </article>
       </div>
     </section>
@@ -48,17 +55,17 @@
           <div class="card">
             <h3>学习路径</h3>
             <p>AI 根据你的技能和目标岗位生成个性化学习路径。</p>
-            <button class="btn btn-outline" @click="go('/ai')">查看详情</button>
+            <button class="btn btn-outline" @click="go('/rag')">查看详情</button>
           </div>
           <div class="card">
-            <h3>模拟面试计划</h3>
-            <p>为目标岗位生成面试清单。</p>
-            <button class="btn btn-outline" @click="go('/ai')">进入 AI</button>
+            <h3>岗位匹配计划</h3>
+            <p>先做人岗匹配，明确目标岗位后再优化简历。</p>
+            <button class="btn btn-outline" @click="go('/ai', { tab: 'match' })">进入 AI</button>
           </div>
           <div class="card">
             <h3>简历改进建议</h3>
             <p>基于岗位 JD 的优化清单。</p>
-            <button class="btn btn-outline" @click="go('/ai')">查看建议</button>
+            <button class="btn btn-outline" @click="go('/ai', { tab: 'resume-optimize' })">查看建议</button>
           </div>
         </div>
       </div>
@@ -68,18 +75,18 @@
       <div class="container">
         <div class="section-title">
           <h2>招聘效率面板</h2>
-          <p>集中管理候选人、岗位与 AI 面试。</p>
+          <p>集中管理候选人、岗位与 AI 简历筛选。</p>
         </div>
         <div class="grid cards-3">
           <div class="card">
             <h3>候选人池</h3>
             <p>按技能与学校快速筛选。</p>
-            <button class="btn btn-outline" @click="go('/company-center')">查看候选人</button>
+            <button class="btn btn-outline" @click="go('/company-center', { tab: 'candidates' })">查看候选人</button>
           </div>
           <div class="card">
-            <h3>AI 面试流程</h3>
-            <p>为岗位生成标准问题与评分。</p>
-            <button class="btn btn-outline" @click="go('/ai')">进入 AI</button>
+            <h3>AI 简历筛选</h3>
+            <p>按岗位要求自动初筛简历并给出评分建议。</p>
+            <button class="btn btn-outline" @click="go('/ai', { tab: 'company-screening' })">进入 AI</button>
           </div>
           <div class="card">
             <h3>消息提醒</h3>
@@ -111,6 +118,11 @@
             <h3>公告管理</h3>
             <p>已发布 {{ announcements.length }} 条公告</p>
             <button class="btn btn-outline" @click="go('/admin-center')">管理公告</button>
+          </div>
+          <div class="card">
+            <h3>学院详情</h3>
+            <p>查看学院就业画像、企业资源与投递分布。</p>
+            <button class="btn btn-outline" @click="go('/college-insights')">查看详情</button>
           </div>
         </div>
       </div>
@@ -160,14 +172,15 @@ const dashboardCards = computed(() => {
   if (role.value === "student") {
     return [
       { title: "推荐职位", desc: favoriteCount.value > 0 ? `已收藏 ${favoriteCount.value} 个岗位` : "根据技能匹配岗位。", action: "去找职位", path: "/jobs", icon: "职" },
-      { title: "AI 助手", desc: "岗位匹配、RAG 与面试。", action: "进入 AI", path: "/ai", icon: "智" },
-      { title: "消息中心", desc: "查看企业沟通。", action: "查看消息", path: "/messages", icon: "信" }
+      { title: "投递进度", desc: `当前共有 ${studentApplicationCount.value} 条投递记录`, action: "查看进度", path: "/my-applications", icon: "投" },
+      { title: "消息中心", desc: "查看企业沟通。", action: "查看消息", path: "/messages", icon: "信" },
+      { title: "浏览记录", desc: "回看浏览过的岗位与企业。", action: "查看记录", path: "/view-history", icon: "览" }
     ];
   }
   if (role.value === "company") {
     return [
       { title: "职位管理", desc: "发布与管理岗位。", action: "进入职位", path: "/jobs", icon: "岗" },
-      { title: "企业中心", desc: "完善主页与认证信息。", action: "进入中心", path: "/company-center", icon: "企" },
+      { title: "候选人筛选", desc: "查看投递候选人与流程状态。", action: "查看候选人", path: "/company-center?tab=candidates", icon: "筛" },
       { title: "消息中心", desc: "沟通与邀约集中处理。", action: "查看消息", path: "/messages", icon: "信" }
     ];
   }
@@ -181,27 +194,31 @@ const dashboardCards = computed(() => {
 const kpiCards = computed(() => {
   if (role.value === "student") {
     return [
-      { label: "我的投递", value: studentApplicationCount.value, tip: "累计投递记录" },
-      { label: "面试阶段", value: studentInterviewingCount.value, tip: "面试中状态" },
-      { label: "岗位收藏", value: favoriteCount.value, tip: "收藏可快速复投" }
+      { label: "我的投递", value: studentApplicationCount.value, tip: "累计投递记录", action: "查看投递", path: "/my-applications" },
+      { label: "面试阶段", value: studentInterviewingCount.value, tip: "面试中状态", action: "查看面试进度", path: "/my-applications", query: { status: "interviewing" } },
+      { label: "岗位收藏", value: favoriteCount.value, tip: "收藏可快速复投", action: "前往收藏", path: "/favorites" }
     ];
   }
   if (role.value === "company") {
     return [
-      { label: "我的岗位", value: companyJobCount.value, tip: "当前可管理岗位" },
-      { label: "收到投递", value: companyApplicationCount.value, tip: "所有候选人投递" },
-      { label: "进行中流程", value: companyActiveProcessCount.value, tip: "待继续推进候选人" }
+      { label: "我的岗位", value: companyJobCount.value, tip: "当前可管理岗位", action: "管理岗位", path: "/jobs" },
+      { label: "收到投递", value: companyApplicationCount.value, tip: "所有候选人投递", action: "查看候选人", path: "/company-center", query: { tab: "candidates" } },
+      { label: "进行中流程", value: companyActiveProcessCount.value, tip: "待继续推进候选人", action: "进入流程管理", path: "/company-center", query: { tab: "candidates" } }
     ];
   }
   return [
-    { label: "学生总数", value: stats.value.student_total, tip: "平台注册学生" },
-    { label: "企业总数", value: stats.value.company_total, tip: "认证企业总量" },
-    { label: "待审企业", value: pendingCompanies.value, tip: "待校方处理" },
-    { label: "公告数量", value: announcements.value.length, tip: "已发布平台公告" }
+    { label: "学生总数", value: stats.value.student_total, tip: "平台注册学生", action: "查看用户", path: "/admin-center", query: { tab: "users" } },
+    { label: "企业总数", value: stats.value.company_total, tip: "认证企业总量", action: "查看企业", path: "/companies" },
+    { label: "待审企业", value: pendingCompanies.value, tip: "待校方处理", action: "去审核", path: "/companies" },
+    { label: "公告数量", value: announcements.value.length, tip: "已发布平台公告", action: "管理公告", path: "/admin-center", query: { tab: "announcements" } }
   ];
 });
 
-function go(path) {
+function go(path, query = null) {
+  if (query && typeof query === "object") {
+    router.push({ path, query });
+    return;
+  }
   router.push(path);
 }
 
@@ -309,13 +326,19 @@ onMounted(async () => {
 .kpi-card {
   border: 1px solid #d2eadc;
   padding: 16px 18px;
-  gap: 6px;
+  gap: 8px;
 }
 
 .kpi-card strong {
   color: var(--accent-dark);
   font-size: 30px;
   line-height: 1.1;
+}
+
+.kpi-btn {
+  width: fit-content;
+  font-size: 12px;
+  padding: 6px 10px;
 }
 
 .kpi-card span {

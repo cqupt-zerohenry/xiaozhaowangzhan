@@ -192,12 +192,42 @@ def update_verification_request(
     if not record:
         raise HTTPException(status_code=404, detail='Verification request not found')
 
+    if payload.status not in {'approved', 'rejected'}:
+        raise HTTPException(status_code=400, detail='Unsupported verification status')
+    if record.status not in {'pending', 'pending_admin'}:
+        raise HTTPException(status_code=400, detail='Verification request is not ready for school review')
+
     record.status = payload.status
-    record.result = payload.result
+    record.result = payload.result or ('学校核验通过' if payload.status == 'approved' else '学校核验驳回')
 
     student = db.get(StudentProfile, record.student_id)
     if student and payload.status == 'approved':
         student.verified = True
+
+    company = db.get(CompanyProfile, record.company_id)
+    company_name = company.company_name if company else f'企业#{record.company_id}'
+    result_text = '通过' if payload.status == 'approved' else '驳回'
+    student_message = f'你对 {company_name} 的核验申请已被校方{result_text}。'
+    company_message = f'你发起的学生核验申请（学生ID {record.student_id}）已被校方{result_text}。'
+    if record.result:
+        student_message = f'{student_message} 结果：{record.result}'
+        company_message = f'{company_message} 结果：{record.result}'
+    create_notification_sync(
+        db,
+        user_id=record.student_id,
+        title='核验结果已更新',
+        content=student_message,
+        notification_type='verification',
+        related_id=record.id,
+    )
+    create_notification_sync(
+        db,
+        user_id=record.company_id,
+        title='核验结果已更新',
+        content=company_message,
+        notification_type='verification',
+        related_id=record.id,
+    )
 
     db.commit()
     db.refresh(record)

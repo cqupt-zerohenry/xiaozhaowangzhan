@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import re
 
@@ -29,7 +30,7 @@ from app.models import (
     ViewHistory,
 )
 from app import llm_service
-from app.rag_service import chunk_and_embed, retrieve_chunks
+from app.rag_service import chunk_and_embed, embed_texts, retrieve_chunks
 
 router = APIRouter(prefix='/ai', tags=['ai'])
 
@@ -477,8 +478,178 @@ def _load_kb_chunks(db: Session, kb_id: int) -> tuple[list[str], list[list[float
         select(KnowledgeChunk).where(KnowledgeChunk.kb_id == kb_id).order_by(KnowledgeChunk.id)
     ).all()
     texts = [c.content for c in chunks]
-    embeddings = [c.embedding for c in chunks]
+    embeddings = []
+    for chunk in chunks:
+        normalized = _normalize_embedding(chunk.embedding)
+        embeddings.append(normalized if normalized else None)
     return texts, embeddings, chunks
+
+
+def _normalize_embedding(embedding: object) -> list[float]:
+    if isinstance(embedding, list):
+        out: list[float] = []
+        for item in embedding:
+            try:
+                out.append(float(item))
+            except Exception:
+                return []
+        return out
+    if isinstance(embedding, str):
+        text = embedding.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+            return _normalize_embedding(parsed)
+        except Exception:
+            return []
+    return []
+
+
+def _extract_chunk_tags(content: str, limit: int = 6) -> list[str]:
+    text = str(content or '').strip()
+    if not text:
+        return []
+
+    text_lower = text.lower()
+    tags: list[str] = []
+    seen: set[str] = set()
+
+    def _push(tag: str) -> None:
+        t = tag.strip()
+        if not t:
+            return
+        key = t.lower()
+        if key in seen:
+            return
+        seen.add(key)
+        tags.append(t)
+
+    domain_tags = [
+        ('前端', ['vue', 'react', 'css', 'javascript', 'typescript', '浏览器']),
+        ('后端', ['fastapi', 'spring', 'mysql', 'redis', 'api', '数据库']),
+        ('运维', ['linux', 'docker', 'kubernetes', 'prometheus', 'nginx', 'sre']),
+        ('面试题', ['面试', '八股', '问答', '题目']),
+        ('项目实战', ['项目', '实战', '落地', '架构']),
+    ]
+    for label, words in domain_tags:
+        if any(w in text_lower for w in words):
+            _push(label)
+
+    heading_tokens = re.findall(r'(?m)^\s{0,3}#{1,6}\s+(.+?)\s*$', text)
+    for token in heading_tokens[:3]:
+        _push(token[:24])
+
+    for token in extract_keywords(text[:600], limit=10):
+        _push(token[:18])
+
+    return tags[:limit]
+
+
+@router.post('/knowledge-bases/{kb_id}/rebuild-embeddings', response_model=schemas.KnowledgeEmbeddingRebuildResponse)
+def rebuild_kb_embeddings(
+    kb_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> schemas.KnowledgeEmbeddingRebuildResponse:
+    kb = db.get(KnowledgeBase, kb_id)
+    if not kb:
+        raise HTTPException(status_code=404, detail='Knowledge base not found')
+    _ensure_kb_owner(kb, current_user)
+
+    chunks = db.scalars(
+        select(KnowledgeChunk).where(KnowledgeChunk.kb_id == kb_id).order_by(KnowledgeChunk.id)
+    ).all()
+    total_chunks = len(chunks)
+
+    pending_chunks: list[KnowledgeChunk] = []
+    already_ready_chunks = 0
+    skipped_empty_chunks = 0
+
+    for chunk in chunks:
+        content = str(chunk.content or '').strip()
+        if not content:
+            skipped_empty_chunks += 1
+            continue
+
+        normalized = _normalize_embedding(chunk.embedding)
+        if normalized:
+            if chunk.embedding != normalized:
+                chunk.embedding = normalized
+            already_ready_chunks += 1
+            continue
+        pending_chunks.append(chunk)
+
+    reembedded_chunks = 0
+    batch_size = 32
+    for start in range(0, len(pending_chunks), batch_size):
+        batch = pending_chunks[start:start + batch_size]
+        texts = [str(item.content or '') for item in batch]
+        vectors = embed_texts(texts)
+        for item, vector in zip(batch, vectors, strict=False):
+            if isinstance(vector, list) and len(vector) > 0:
+                item.embedding = [float(v) for v in vector]
+                reembedded_chunks += 1
+
+    db.commit()
+    return schemas.KnowledgeEmbeddingRebuildResponse(
+        kb_id=kb_id,
+        total_chunks=total_chunks,
+        reembedded_chunks=reembedded_chunks,
+        already_ready_chunks=already_ready_chunks,
+        skipped_empty_chunks=skipped_empty_chunks,
+    )
+
+
+@router.get('/knowledge-bases/{kb_id}/documents/{doc_id}/chunks', response_model=schemas.KnowledgeChunkListResponse)
+def list_document_chunks(
+    kb_id: int,
+    doc_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> schemas.KnowledgeChunkListResponse:
+    kb = db.get(KnowledgeBase, kb_id)
+    if not kb:
+        raise HTTPException(status_code=404, detail='Knowledge base not found')
+    _ensure_kb_owner(kb, current_user)
+
+    doc = db.get(KnowledgeDocument, doc_id)
+    if not doc or doc.kb_id != kb_id:
+        raise HTTPException(status_code=404, detail='Document not found')
+
+    chunks = db.scalars(
+        select(KnowledgeChunk)
+        .where(KnowledgeChunk.document_id == doc_id)
+        .order_by(KnowledgeChunk.chunk_index, KnowledgeChunk.id)
+    ).all()
+
+    preview_items: list[schemas.KnowledgeChunkPreview] = []
+    total_chars = 0
+    for chunk in chunks:
+        content = str(chunk.content or '')
+        char_count = len(content)
+        total_chars += char_count
+        preview_items.append(
+            schemas.KnowledgeChunkPreview(
+                id=chunk.id,
+                document_id=chunk.document_id,
+                chunk_index=chunk.chunk_index,
+                token_count=chunk.token_count or 0,
+                char_count=char_count,
+                content=content,
+                content_preview=content[:160] + ('...' if len(content) > 160 else ''),
+                tags=_extract_chunk_tags(content),
+            )
+        )
+
+    avg_chunk_chars = int(total_chars / len(preview_items)) if preview_items else 0
+    return schemas.KnowledgeChunkListResponse(
+        kb_id=kb_id,
+        document_id=doc_id,
+        total_chunks=len(preview_items),
+        avg_chunk_chars=avg_chunk_chars,
+        chunks=preview_items,
+    )
 
 
 def _retrieve_from_kb(
@@ -1579,14 +1750,19 @@ def rag(
     if sources:
         retrieved_text = '\n\n'.join(f'【{s.document_title}】{s.chunk_content}' for s in sources[:5])
         llm_answer = llm_service.generate_rag_answer(question, retrieved_text)
-        answer = llm_answer or (
-            f'根据知识库检索到 {len(sources)} 条相关内容：\n\n{retrieved_text}'
-        )
+        if llm_answer:
+            answer = llm_answer
+        else:
+            top_titles = '、'.join(
+                dict.fromkeys(str(s.document_title) for s in sources[:3] if s.document_title)
+            ) or '知识库文档'
+            answer = f'已检索到 {len(sources)} 条相关内容，重点来自：{top_titles}。建议先从最贴近岗位的核心技能开始补齐，再结合项目实战巩固。'
     else:
         llm_answer = llm_service.chat(
-            '你是校园招聘平台的职业规划顾问，请用中文回答用户的职业相关问题。',
+            '你是校园招聘平台的职业规划顾问。请用中文自然语言简短回答用户问题，'
+            '控制在 3~5 句、220 字以内，不要使用 Markdown 标题、表格、代码块。',
             question,
-            max_tokens=1000,
+            max_tokens=420,
         )
         answer = llm_answer or fallback['answer']
 
@@ -1658,15 +1834,16 @@ async def parse_resume_endpoint(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
 ) -> schemas.ResumeParseResponse:
+    from app.resume_parser import SUPPORTED_RESUME_EXTENSIONS, parse_resume
+
     ext = (file.filename or '').rsplit('.', 1)[-1].lower()
-    if ext not in ('pdf', 'docx', 'doc', 'txt', 'md'):
-        raise HTTPException(status_code=400, detail='Supported formats: PDF, DOCX, TXT, MD')
+    if ext not in SUPPORTED_RESUME_EXTENSIONS:
+        raise HTTPException(status_code=400, detail='Supported formats: PDF, DOC, DOCX, TXT, MD')
 
     content = await file.read()
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail='File too large (max 10MB)')
 
-    from app.resume_parser import parse_resume
     result = parse_resume(content, file.filename or 'resume.txt')
     return schemas.ResumeParseResponse(**result)
 
@@ -1674,6 +1851,169 @@ async def parse_resume_endpoint(
 # ---------------------------------------------------------------------------
 # Interview Flow (multi-step interactive interview)
 # ---------------------------------------------------------------------------
+
+def _is_non_answer(answer_text: str) -> bool:
+    """Detect answers that are effectively empty or non-informative."""
+    text = (answer_text or '').strip().lower()
+    if not text:
+        return True
+    pure = re.sub(r'[\s，。,.!！?？；;、~～\-—_()（）【】\[\]{}:：\'"“”`]+', '', text)
+    if not pure:
+        return True
+    if pure in {'不知道', '不清楚', '不会', '不了解', '没思路', '无', '不会做', '不太会', '没做过', '跳过', '未作答'}:
+        return True
+
+    patterns = [
+        '我不知道', '不知道怎么', '不太清楚', '不太了解', '我不会', '不会回答', '没做过',
+        '暂时不会', '没有思路', '没什么思路', '答不上来', '跳过', '未作答'
+    ]
+    if any(p in pure for p in patterns):
+        return True
+
+    # Very short sentence without any technical/detail signal is considered non-answer.
+    if len(pure) <= 6 and not re.search(r'[a-z0-9]+', pure):
+        return True
+    return False
+
+
+def _rule_based_interview_answer_eval(question_text: str, answer_text: str) -> tuple[int, str, list[str], list[str]]:
+    """Fallback scoring for one interview answer when LLM evaluation is unavailable."""
+    text = answer_text.strip()
+    if _is_non_answer(text):
+        return (
+            8,
+            '回答基本无有效信息，无法评估岗位能力。建议至少给出思路、方法或一个相关案例。',
+            ['表达了当前知识盲区'],
+            ['按“思路-行动-结果”补充有效回答'],
+        )
+
+    score = 45
+    if len(text) >= 80:
+        score += 10
+    if len(text) >= 160:
+        score += 10
+    if len(text) >= 260:
+        score += 8
+    if any(kw in text for kw in ['例如', '比如', '项目', '实习', '场景', '上线', '落地']):
+        score += 10
+    if any(kw in text for kw in ['数据', '指标', '%', '提升', '优化', '耗时', '成本']):
+        score += 9
+    if any(kw in text for kw in ['首先', '其次', '最后', '第一', '第二', '总结']):
+        score += 8
+
+    q_keywords = extract_keywords(question_text, limit=8)
+    hits = sum(1 for kw in q_keywords if kw.lower() in text.lower())
+    if q_keywords:
+        score += min(10, int(hits / len(q_keywords) * 10))
+    score = max(0, min(100, score))
+
+    if score >= 85:
+        feedback = '回答完整且贴题，已体现方法与结果，建议补充边界条件讨论。'
+    elif score >= 70:
+        feedback = '回答较清晰，覆盖核心点，建议增加量化结果和取舍分析。'
+    elif score >= 55:
+        feedback = '回答基础可用，但深度不足，建议补充项目细节与复盘。'
+    else:
+        feedback = '回答较简略，建议按 STAR 结构补充背景、动作与结果。'
+
+    strengths: list[str] = []
+    improvements: list[str] = []
+    if len(text) >= 120:
+        strengths.append('信息量较充足')
+    if any(kw in text for kw in ['项目', '实习', '落地']):
+        strengths.append('具备实践描述')
+    if any(kw in text for kw in ['数据', '指标', '提升']):
+        strengths.append('有结果意识')
+    if not strengths:
+        strengths = ['有基本回答框架']
+
+    if len(text) < 100:
+        improvements.append('补充关键步骤与结论')
+    if not any(kw in text for kw in ['数据', '指标', '提升', '%']):
+        improvements.append('增加量化结果支撑')
+    if not any(kw in text for kw in ['首先', '其次', '最后', '第一', '第二']):
+        improvements.append('增强结构化表达')
+    if not improvements:
+        improvements = ['继续强化复杂场景下的权衡思路']
+    return score, feedback, strengths[:3], improvements[:3]
+
+
+def _rule_based_interview_result(qa_items: list[dict]) -> tuple[int, list[schemas.DimensionScore], str]:
+    """Fallback final interview result aggregation when LLM evaluation is unavailable."""
+    answered_count = max(len(qa_items), 1)
+    total_score = sum(int(item.get('score') or 0) for item in qa_items)
+    avg_score = round(total_score / answered_count)
+
+    total_len = sum(len(str(item.get('answer') or '')) for item in qa_items)
+    avg_len = int(total_len / answered_count)
+    project_hits = sum(
+        1 for item in qa_items
+        if any(kw in str(item.get('answer') or '') for kw in ['项目', '实习', '落地', '上线'])
+    )
+    logic_hits = sum(
+        1 for item in qa_items
+        if any(kw in str(item.get('answer') or '') for kw in ['首先', '其次', '最后', '第一', '第二', '总结'])
+    )
+    metric_hits = sum(
+        1 for item in qa_items
+        if any(kw in str(item.get('answer') or '') for kw in ['数据', '指标', '%', '提升', '优化'])
+    )
+
+    expression = min(100, int(avg_len * 0.45))
+    depth = min(100, max(0, avg_score + int(metric_hits / answered_count * 8) - 2))
+    logic = min(100, max(0, avg_score + int(logic_hits / answered_count * 12) - 4))
+    practice = min(100, int(project_hits / answered_count * 100))
+    overall = min(100, max(0, round(avg_score * 0.85 + (depth + logic + practice) / 3 * 0.15)))
+
+    dimension_scores = [
+        schemas.DimensionScore(dimension='表达完整度', score=expression, comment='根据回答信息量与完整程度评估'),
+        schemas.DimensionScore(dimension='专业深度', score=depth, comment='根据技术术语、方法与结果论证评估'),
+        schemas.DimensionScore(dimension='逻辑条理', score=logic, comment='根据结构化表达与层次清晰度评估'),
+        schemas.DimensionScore(dimension='实践经验', score=practice, comment='根据项目/实习落地描述比例评估'),
+        schemas.DimensionScore(dimension='综合表现', score=overall, comment='结合全题表现与核心能力综合判断'),
+    ]
+
+    if overall >= 85:
+        overall_feedback = '整体面试表现优秀，回答贴题且具备较强实战意识，建议继续提升复杂场景的取舍表达。'
+    elif overall >= 70:
+        overall_feedback = '整体表现良好，基础能力扎实，建议补充更多量化结果和技术深度细节。'
+    elif overall >= 55:
+        overall_feedback = '整体表现中等，建议强化项目复盘能力，并用结构化方式提升表达效率。'
+    else:
+        overall_feedback = '当前表现有提升空间，建议系统准备高频问题并以 STAR 方法组织答案。'
+
+    return overall, dimension_scores, overall_feedback
+
+
+def _build_resume_interview_context(payload: schemas.InterviewFlowStartRequest) -> tuple[list[str], str]:
+    """Build resume-driven focus points and context for interview question generation."""
+    resume_skills = [s.strip() for s in (payload.resume_skills or []) if s and s.strip()]
+    resume_major = (payload.resume_major or '').strip()
+    resume_exp_items = [str(item).strip() for item in (payload.resume_experience or []) if str(item).strip()]
+    resume_text = (payload.resume_text or '').strip()
+
+    resume_focus: list[str] = []
+    resume_focus.extend(resume_skills[:4])
+    if resume_major:
+        resume_focus.append(resume_major)
+
+    exp_keywords = extract_keywords(' '.join(resume_exp_items)[:600], limit=4)
+    for kw in exp_keywords:
+        if kw.lower() not in {x.lower() for x in resume_focus}:
+            resume_focus.append(kw)
+
+    context_parts: list[str] = []
+    if resume_major:
+        context_parts.append(f'专业方向：{resume_major}')
+    if resume_skills:
+        context_parts.append(f'技能关键词：{", ".join(resume_skills[:10])}')
+    if resume_exp_items:
+        context_parts.append('项目/实习经历：' + '；'.join(resume_exp_items[:5]))
+    if resume_text:
+        context_parts.append('简历文本摘要：' + resume_text[:1000])
+    context_text = '\n'.join(context_parts)
+    return resume_focus[:6], context_text
+
 
 @router.post('/interview-flow/start', response_model=schemas.InterviewFlowStartResponse,
              summary='Start an interactive interview session')
@@ -1684,6 +2024,7 @@ def interview_flow_start(
 ) -> schemas.InterviewFlowStartResponse:
     job_title = payload.job_title or '目标岗位'
     count = payload.question_count
+    resume_focus, resume_context = _build_resume_interview_context(payload)
 
     # If template_id provided, use its config
     template = None
@@ -1693,12 +2034,25 @@ def interview_flow_start(
             job_title = template.job_title or job_title
             count = template.question_count or count
 
-    focus = extract_keywords(job_title, limit=3) or ['岗位核心能力']
+    base_focus = extract_keywords(job_title, limit=3) or ['岗位核心能力']
+    focus = []
+    seen: set[str] = set()
+    for token in base_focus + resume_focus:
+        key = token.lower().strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        focus.append(token)
+    focus = focus[:8] or ['岗位核心能力']
+
     q_types = ['技术基础', '项目经验', '场景分析', '沟通协作', '行为面试']
+    if resume_context:
+        q_types = ['项目经验', '场景分析', '沟通协作', '行为面试', '简历深挖']
 
     llm_questions = llm_service.generate_interview_questions(
         job_title=job_title, focus_points=focus,
         question_types=q_types, question_count=count,
+        context=resume_context,
     )
     questions = llm_questions or build_interview_questions(
         job_title=job_title, question_types=q_types,
@@ -1717,6 +2071,12 @@ def interview_flow_start(
         session_type='interview_flow',
         generated_questions=questions,
         answers_json=[],
+        evaluation_json={
+            'job_title': job_title,
+            'difficulty': difficulty,
+            'resume_used': bool(resume_context),
+            'resume_focus': resume_focus[:6],
+        },
         status='in_progress',
     )
     db.add(session)
@@ -1749,51 +2109,65 @@ def interview_flow_answer(
     if payload.question_index < 0 or payload.question_index >= len(questions):
         raise HTTPException(status_code=400, detail='Invalid question index')
 
-    # Store answer
-    answers = list(session.answers_json or [])
-    answers.append({
-        'index': payload.question_index,
-        'question': questions[payload.question_index] if payload.question_index < len(questions) else '',
-        'answer': payload.answer,
-    })
-    session.answers_json = answers
-
-    # Generate per-question feedback
+    # Generate per-question evaluation
     question_text = questions[payload.question_index] if payload.question_index < len(questions) else ''
     answer_text = payload.answer.strip()
+    rule_score, rule_feedback, rule_strengths, rule_improvements = _rule_based_interview_answer_eval(
+        question_text, answer_text
+    )
 
-    # Rule-based scoring
-    score = 50
-    if len(answer_text) > 200:
-        score += 15
-    if len(answer_text) > 100:
-        score += 10
-    if any(kw in answer_text for kw in ['例如', '比如', '具体', '项目', '实现', '结果', '经验']):
-        score += 10
-    if any(kw in answer_text for kw in ['数据', '指标', '优化', '提升', '架构', '设计']):
-        score += 10
-    score = min(score, 100)
+    eval_meta = session.evaluation_json if isinstance(session.evaluation_json, dict) else {}
+    template = db.get(AIInterviewTemplate, session.template_id) if session.template_id else None
+    job_title = (template.job_title if template else '') or str(eval_meta.get('job_title') or '目标岗位')
 
-    # Try LLM feedback
-    feedback = ''
-    try:
-        llm_fb = llm_service.chat(
-            '你是面试评估专家，请简短评价回答质量并给出改进建议（50字以内）。',
-            f'问题：{question_text}\n回答：{answer_text}',
-            temperature=0.3, max_tokens=100,
-        )
-        if llm_fb:
-            feedback = llm_fb
-    except Exception:
-        pass
+    llm_eval = llm_service.evaluate_interview_answer(
+        job_title=job_title,
+        question=question_text,
+        answer=answer_text,
+    )
+    non_answer = _is_non_answer(answer_text)
+    if llm_eval:
+        score = int(llm_eval.get('score', rule_score))
+        feedback = str(llm_eval.get('feedback') or rule_feedback)
+        strengths = llm_eval.get('strengths') or rule_strengths
+        improvements = llm_eval.get('improvements') or rule_improvements
+        evaluated_by = 'llm'
+    else:
+        score = rule_score
+        feedback = rule_feedback
+        strengths = rule_strengths
+        improvements = rule_improvements
+        evaluated_by = 'rule'
 
-    if not feedback:
-        if score >= 80:
-            feedback = '回答较为完整，条理清晰。可以进一步补充量化数据增强说服力。'
-        elif score >= 60:
-            feedback = '回答涵盖了基本要点，建议增加具体案例和项目经验来丰富内容。'
-        else:
-            feedback = '回答较为简短，建议使用STAR法则组织回答，补充具体细节和成果。'
+    # Force low score for non-answers, even if LLM returns a higher score.
+    if non_answer:
+        score = min(score, 12)
+        feedback = '该回答基本无有效内容，无法体现岗位能力，当前题目判定为低分。'
+        strengths = ['已明确当前不会的部分']
+        improvements = ['至少给出可执行思路、一个相关案例和预期结果']
+
+    # Store answer (upsert by question index)
+    answers = list(session.answers_json or [])
+    answer_row = {
+        'index': payload.question_index,
+        'question': question_text,
+        'answer': payload.answer,
+        'score': score,
+        'feedback': feedback,
+        'strengths': strengths,
+        'improvements': improvements,
+        'evaluated_by': evaluated_by,
+    }
+    matched = False
+    for idx, item in enumerate(answers):
+        if int(item.get('index', -1)) == payload.question_index:
+            answers[idx] = answer_row
+            matched = True
+            break
+    if not matched:
+        answers.append(answer_row)
+    answers.sort(key=lambda item: int(item.get('index', 0)))
+    session.answers_json = answers
 
     db.commit()
     return schemas.InterviewFlowAnswerResponse(feedback=feedback, score=score)
@@ -1810,86 +2184,103 @@ def interview_flow_result(
     if not session:
         raise HTTPException(status_code=404, detail='Session not found')
 
-    answers = session.answers_json or []
-    questions = session.generated_questions or []
+    answers = list(session.answers_json or [])
+    if not answers:
+        raise HTTPException(status_code=400, detail='No answers submitted')
 
-    # Score each answer
-    question_feedbacks = []
-    total_score = 0
-    for ans in answers:
-        text = ans.get('answer', '')
-        s = 50
-        if len(text) > 200:
-            s += 15
-        if len(text) > 100:
-            s += 10
-        if any(kw in text for kw in ['例如', '比如', '具体', '项目', '实现']):
-            s += 10
-        if any(kw in text for kw in ['数据', '指标', '优化', '提升']):
-            s += 10
-        s = min(s, 100)
-        total_score += s
-        question_feedbacks.append({
-            'index': ans.get('index', 0),
-            'question': ans.get('question', ''),
-            'answer': text,
-            'score': s,
+    # Normalize answer rows and ensure each row has score/feedback
+    normalized_rows: list[dict] = []
+    for ans in sorted(answers, key=lambda item: int(item.get('index', 0))):
+        idx = int(ans.get('index', 0))
+        question = str(ans.get('question') or '')
+        answer = str(ans.get('answer') or '')
+        if 'score' in ans and isinstance(ans.get('score'), int):
+            score = max(0, min(100, int(ans.get('score'))))
+            feedback = str(ans.get('feedback') or '').strip()
+        else:
+            score, feedback, strengths, improvements = _rule_based_interview_answer_eval(question, answer)
+            ans['score'] = score
+            ans['feedback'] = feedback
+            ans['strengths'] = strengths
+            ans['improvements'] = improvements
+            ans['evaluated_by'] = 'rule'
+        normalized_rows.append({
+            'index': idx,
+            'question': question,
+            'answer': answer,
+            'score': score,
+            'feedback': feedback,
+            'strengths': ans.get('strengths') or [],
+            'improvements': ans.get('improvements') or [],
+            'evaluated_by': ans.get('evaluated_by') or 'rule',
         })
 
-    avg_score = round(total_score / max(len(answers), 1))
+    eval_meta = session.evaluation_json if isinstance(session.evaluation_json, dict) else {}
+    template = db.get(AIInterviewTemplate, session.template_id) if session.template_id else None
+    job_title = (template.job_title if template else '') or str(eval_meta.get('job_title') or '目标岗位')
 
-    # Dimension scores
-    answered_count = len(answers)
-    total_len = sum(len(a.get('answer', '')) for a in answers)
-    dimension_scores = [
-        schemas.DimensionScore(
-            dimension='表达完整度',
-            score=min(100, int(total_len / max(answered_count, 1) / 2)),
-            comment='基于回答的平均长度和信息量',
-        ),
-        schemas.DimensionScore(
-            dimension='专业深度',
-            score=avg_score,
-            comment='基于专业关键词覆盖和案例丰富度',
-        ),
-        schemas.DimensionScore(
-            dimension='逻辑条理',
-            score=min(100, avg_score + 5),
-            comment='基于回答的结构化程度',
-        ),
-        schemas.DimensionScore(
-            dimension='实践经验',
-            score=min(100, int(sum(1 for a in answers if '项目' in a.get('answer', '') or '实习' in a.get('answer', '')) / max(answered_count, 1) * 100)),
-            comment='基于项目/实习经历的提及率',
-        ),
-        schemas.DimensionScore(
-            dimension='综合表现',
-            score=avg_score,
-            comment='各维度综合评估',
-        ),
+    llm_final = llm_service.evaluate_interview_session(
+        job_title=job_title,
+        qa_items=normalized_rows,
+    )
+    if llm_final:
+        final_total_score = int(llm_final.get('total_score', 0))
+        dimension_scores = [
+            schemas.DimensionScore(
+                dimension=str(item.get('dimension') or ''),
+                score=int(item.get('score') or 0),
+                comment=str(item.get('comment') or '基于面试回答综合评估'),
+            )
+            for item in llm_final.get('dimension_scores', [])
+            if str(item.get('dimension') or '').strip()
+        ]
+        if len(dimension_scores) < 5:
+            final_total_score, dimension_scores, overall_feedback = _rule_based_interview_result(normalized_rows)
+            result_by = 'rule'
+        else:
+            overall_feedback = str(llm_final.get('overall_feedback') or '').strip()
+            if overall_feedback:
+                result_by = 'llm'
+            else:
+                final_total_score, dimension_scores, overall_feedback = _rule_based_interview_result(normalized_rows)
+                result_by = 'rule'
+    else:
+        final_total_score, dimension_scores, overall_feedback = _rule_based_interview_result(normalized_rows)
+        result_by = 'rule'
+
+    question_feedbacks = [
+        {
+            'index': row['index'],
+            'question': row['question'],
+            'answer': row['answer'],
+            'score': row['score'],
+            'feedback': row['feedback'],
+        }
+        for row in normalized_rows
     ]
 
-    # Overall feedback
-    if avg_score >= 80:
-        overall = '整体表现优秀！回答完整、条理清晰、有深度。建议继续保持，可以更多关注行业前沿趋势。'
-    elif avg_score >= 60:
-        overall = '整体表现良好，基础扎实。建议加强项目经验的描述，使用更多量化数据来支撑观点。'
-    else:
-        overall = '有提升空间。建议：(1)提前准备常见面试题；(2)使用STAR法则组织回答；(3)多积累实际项目经验。'
+    session.answers_json = normalized_rows
+    merged_meta = dict(eval_meta)
+    merged_meta.update({
+        'job_title': job_title,
+        'evaluated_by': result_by,
+    })
 
     session.status = 'completed'
     session.evaluation_json = {
-        'total_score': avg_score,
+        **merged_meta,
+        'total_score': final_total_score,
         'dimension_scores': [d.model_dump() for d in dimension_scores],
-        'overall_feedback': overall,
+        'overall_feedback': overall_feedback,
+        'question_feedbacks': question_feedbacks,
     }
     db.commit()
 
     return schemas.InterviewFlowResultResponse(
         session_id=session_id,
-        total_score=avg_score,
+        total_score=final_total_score,
         dimension_scores=dimension_scores,
-        overall_feedback=overall,
+        overall_feedback=overall_feedback,
         question_feedbacks=question_feedbacks,
     )
 
@@ -1905,27 +2296,22 @@ async def upload_kb_document_extended(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> schemas.KnowledgeDocumentOut:
+    from app.resume_parser import extract_text_from_file
+
     kb = db.get(KnowledgeBase, kb_id)
     if not kb:
         raise HTTPException(status_code=404, detail='Knowledge base not found')
 
     ext = (file.filename or '').rsplit('.', 1)[-1].lower()
     if ext not in ('txt', 'md', 'pdf', 'docx', 'doc'):
-        raise HTTPException(status_code=400, detail='Supported: txt, md, pdf, docx')
+        raise HTTPException(status_code=400, detail='Supported: txt, md, pdf, docx, doc')
 
     content_bytes = await file.read()
     if len(content_bytes) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail='File too large (max 10MB)')
 
-    # Extract text
-    if ext in ('pdf',):
-        from app.resume_parser import extract_text_from_pdf
-        text = extract_text_from_pdf(content_bytes)
-    elif ext in ('docx', 'doc'):
-        from app.resume_parser import extract_text_from_docx
-        text = extract_text_from_docx(content_bytes)
-    else:
-        text = content_bytes.decode('utf-8', errors='ignore')
+    # Extract text by file parser (script-first, parser fallback)
+    text = extract_text_from_file(content_bytes, file.filename or f'upload.{ext}')
 
     if not text.strip():
         raise HTTPException(status_code=400, detail='Could not extract text from file')

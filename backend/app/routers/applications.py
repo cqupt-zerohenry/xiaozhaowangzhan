@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app import schemas
 from app.db import get_db
 from app.dependencies import get_current_user
-from app.models import Application, Job, Message, Notification, Resume, StudentProfile, User
+from app.models import Application, Job, Message, Notification, Resume, StudentIntention, StudentProfile, User
 from app.notification_service import create_notification_sync
 
 router = APIRouter(prefix='/applications', tags=['applications'])
@@ -218,6 +218,7 @@ def company_view_applications(
 
         student = db.get(StudentProfile, app.student_id)
         resume = db.get(Resume, app.resume_id)
+        intention = db.get(StudentIntention, app.student_id)
         if not student:
             continue
 
@@ -241,6 +242,7 @@ def company_view_applications(
                 school=student.school,
                 major=student.major,
                 grade=student.grade,
+                accept_internship=bool(intention.accept_internship) if intention else True,
                 skills=student.skills or [],
                 resume_content=resume.content_json if resume else None,
                 resume_file_url=resume.file_url if resume else '',
@@ -275,6 +277,7 @@ def company_view_application_detail(
         raise HTTPException(status_code=404, detail='Student not found')
 
     resume = db.get(Resume, app.resume_id)
+    intention = db.get(StudentIntention, app.student_id)
 
     return schemas.ApplicationDetailOut(
         application_id=app.id,
@@ -288,6 +291,7 @@ def company_view_application_detail(
         school=student.school,
         major=student.major,
         grade=student.grade,
+        accept_internship=bool(intention.accept_internship) if intention else True,
         skills=student.skills or [],
         resume_content=resume.content_json if resume else None,
         resume_file_url=resume.file_url if resume else '',

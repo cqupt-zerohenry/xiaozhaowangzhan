@@ -14,13 +14,20 @@
     <section>
       <div class="container">
         <div v-if="!history.length" class="card empty-state">暂无浏览记录</div>
-        <div v-else class="history-list">
+        <div v-else class="history-grid">
           <article v-for="item in history" :key="item.id" class="card history-item">
-            <div class="left">
-              <router-link :to="`/jobs/${item.job_id}`" class="job-link">{{ item.job_name }}</router-link>
-              <span v-if="item.company_name" class="company-name">{{ item.company_name }}</span>
+            <div class="history-top">
+              <span class="history-mark">最近浏览</span>
+              <span class="mono time">{{ formatTime(item.create_time) }}</span>
             </div>
-            <span class="mono time">{{ formatTime(item.create_time) }}</span>
+            <router-link :to="`/jobs/${item.job_id}`" class="job-link">{{ item.job_name }}</router-link>
+            <div class="history-meta">
+              <router-link v-if="item.company_name" :to="`/jobs/${item.job_id}`" class="company-link">
+                {{ item.company_name }}
+              </router-link>
+              <span v-else class="company-name">未知企业</span>
+              <router-link :to="`/jobs/${item.job_id}`" class="btn btn-outline btn-sm">查看职位</router-link>
+            </div>
           </article>
         </div>
       </div>
@@ -69,36 +76,53 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
-.history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.history-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
 .history-item {
+  border: 1px solid #d8eee1;
+  background: linear-gradient(140deg, #ffffff 0%, #f7fcf9 100%);
+  box-shadow: 0 10px 20px rgba(15, 122, 70, 0.08);
+}
+
+.history-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  border: 1px solid #d8eee1;
+  gap: 8px;
 }
 
-.left {
+.history-mark {
+  background: rgba(24, 160, 88, 0.1);
+  color: var(--accent-dark);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.history-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .job-link {
   font-weight: 600;
   color: var(--ink);
+  font-size: 18px;
 }
 
 .job-link:hover {
   color: var(--accent);
 }
 
+.company-link,
 .company-name {
   color: var(--muted);
 }
@@ -108,9 +132,9 @@ onMounted(async () => {
 }
 
 @media (max-width: 760px) {
-  .history-item {
-    flex-direction: column;
+  .history-meta {
     align-items: flex-start;
+    flex-direction: column;
   }
 }
 </style>

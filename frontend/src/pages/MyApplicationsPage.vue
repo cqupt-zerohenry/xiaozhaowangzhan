@@ -145,9 +145,11 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import toast from '../utils/toast';
 import { fetchApplications, fetchCompanies, fetchCompany, fetchJob, updateApplicationStatus } from '../services/api';
 
+const route = useRoute();
 const applications = ref([]);
 const loading = ref(false);
 const jobsMap = ref({});
@@ -442,6 +444,18 @@ watch([searchKeyword, activeStatus, sortBy], () => {
 watch(totalPages, (total) => {
   if (page.value > total) page.value = total;
 });
+
+watch(
+  () => route.query.status,
+  (value) => {
+    const next = typeof value === 'string' ? value : '';
+    if (!next) return;
+    if (statusFilters.some((item) => item.key === next)) {
+      activeStatus.value = next;
+    }
+  },
+  { immediate: true }
+);
 
 onMounted(load);
 </script>

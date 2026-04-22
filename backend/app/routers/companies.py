@@ -15,11 +15,13 @@ from app.models import (
     Application,
     CompanyProfile,
     Job,
+    StudentIntention,
     StudentProfile,
     User,
     VerificationRequest,
     ViewHistory,
 )
+from app.notification_service import create_notification_sync
 
 router = APIRouter(prefix='/companies', tags=['companies'])
 
@@ -148,12 +150,14 @@ def recommend_talents(
         skills = set(student.skills or [])
         matched = required_skills.intersection(skills)
         score = int((len(matched) / max(len(required_skills), 1)) * 100)
+        intention = db.get(StudentIntention, student.user_id)
         results.append(
             schemas.TalentRecommendResult(
                 student_id=student.user_id,
                 name=student.name,
                 major=student.major,
                 grade=student.grade,
+                accept_internship=bool(intention.accept_internship) if intention else True,
                 skills=list(skills),
                 match_score=score,
                 reason='Based on overlap between job skills and student skills.',
@@ -179,15 +183,37 @@ def create_verification_request(
     student = db.get(StudentProfile, payload.student_id)
     if not student:
         raise HTTPException(status_code=404, detail='Student not found')
+    if not payload.fields:
+        raise HTTPException(status_code=400, detail='Please provide verification fields')
+
+    existing_open = db.scalar(
+        select(VerificationRequest)
+        .where(
+            VerificationRequest.company_id == user_id,
+            VerificationRequest.student_id == payload.student_id,
+            VerificationRequest.status.in_(['pending', 'pending_student', 'pending_admin']),
+        )
+    )
+    if existing_open:
+        raise HTTPException(status_code=409, detail='An open verification request already exists')
 
     record = VerificationRequest(
         company_id=user_id,
         student_id=payload.student_id,
         fields=payload.fields,
-        status='pending',
-        result='',
+        status='pending_student',
+        result='待学生确认授权',
     )
     db.add(record)
+    db.flush()
+    create_notification_sync(
+        db,
+        user_id=payload.student_id,
+        title='新的核验申请',
+        content=f'企业 {company.company_name} 申请核验你的信息，请在个人中心确认或拒绝。',
+        notification_type='verification',
+        related_id=record.id,
+    )
     db.commit()
     db.refresh(record)
     return schemas.VerificationRequestOut.model_validate(record)

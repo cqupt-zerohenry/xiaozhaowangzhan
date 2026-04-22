@@ -11,6 +11,7 @@ from app.db import get_db
 from app.dependencies import get_current_user, require_self_or_roles
 from app.cache import cache_get_json, cache_set_json
 from app.models import Application, CompanyProfile, Job, Resume, StudentIntention, StudentProfile, User, VerificationRequest, ViewHistory
+from app.notification_service import create_notification_sync
 
 router = APIRouter(prefix='/students', tags=['students'])
 
@@ -219,6 +220,55 @@ def get_student_verifications(
         .order_by(VerificationRequest.id.desc())
     ).all()
     return [schemas.VerificationRequestOut.model_validate(row) for row in rows]
+
+
+@router.patch(
+    '/{user_id}/verification-requests/{request_id}',
+    response_model=schemas.VerificationRequestOut,
+    summary='Student confirm or reject verification request',
+)
+def respond_student_verification(
+    user_id: int,
+    request_id: int,
+    payload: schemas.VerificationStudentDecision,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> schemas.VerificationRequestOut:
+    require_self_or_roles(user_id, current_user, {'admin'})
+
+    record = db.get(VerificationRequest, request_id)
+    if not record or record.student_id != user_id:
+        raise HTTPException(status_code=404, detail='Verification request not found')
+
+    if record.status not in {'pending', 'pending_student'}:
+        raise HTTPException(status_code=400, detail='Verification request is not waiting for student decision')
+
+    if payload.action == 'accept':
+        record.status = 'pending_admin'
+        record.result = '学生已同意授权，待校方审核'
+        create_notification_sync(
+            db,
+            user_id=record.company_id,
+            title='学生已同意核验',
+            content=f'学生 {user_id} 已同意你发起的核验申请，正在等待校方审核。',
+            notification_type='verification',
+            related_id=record.id,
+        )
+    else:
+        record.status = 'student_rejected'
+        record.result = '学生已拒绝授权'
+        create_notification_sync(
+            db,
+            user_id=record.company_id,
+            title='学生拒绝核验',
+            content=f'学生 {user_id} 已拒绝你发起的核验申请。',
+            notification_type='verification',
+            related_id=record.id,
+        )
+
+    db.commit()
+    db.refresh(record)
+    return schemas.VerificationRequestOut.model_validate(record)
 
 
 # ---------------------------------------------------------------------------

@@ -481,6 +481,10 @@ export function fetchKBDocuments(kbId) {
   return request(`/ai/knowledge-bases/${kbId}/documents`);
 }
 
+export function fetchKBDocumentChunks(kbId, docId) {
+  return request(`/ai/knowledge-bases/${kbId}/documents/${docId}/chunks`);
+}
+
 export function addKBDocumentPaste(kbId, payload) {
   return request(`/ai/knowledge-bases/${kbId}/documents`, {
     method: 'POST',
@@ -511,6 +515,12 @@ export function resumeOptimize(payload) {
 
 export function deleteKBDocument(kbId, docId) {
   return request(`/ai/knowledge-bases/${kbId}/documents/${docId}`, { method: 'DELETE' });
+}
+
+export function rebuildKBEmbeddings(kbId) {
+  return request(`/ai/knowledge-bases/${kbId}/rebuild-embeddings`, {
+    method: 'POST'
+  });
 }
 
 export function fetchRecommendEvaluation() {
@@ -567,9 +577,12 @@ export function parseResume(file) {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData
-  }).then(res => {
-    if (!res.ok) throw new Error('Parse failed');
-    return res.json();
+  }).then(async (res) => {
+    const payload = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(payload?.detail || 'Parse failed');
+    }
+    return payload;
   });
 }
 
@@ -632,6 +645,13 @@ export function fetchViewHistory(studentId) {
 // Student verification requests
 export function fetchStudentVerifications(studentId) {
   return request(`/students/${studentId}/verification-requests`);
+}
+
+export function respondStudentVerification(studentId, requestId, payload) {
+  return request(`/students/${studentId}/verification-requests/${requestId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
 }
 
 // KB extended upload (PDF/DOCX)

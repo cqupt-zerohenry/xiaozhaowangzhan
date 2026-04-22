@@ -94,6 +94,11 @@
             <h3>用户管理</h3>
             <span class="mono">共 {{ filteredUsers.length }} 人 · 第 {{ userPage }} / {{ userTotalPages }} 页</span>
           </div>
+          <div class="role-filter-row">
+            <button class="module-btn" :class="{ active: userRoleFilter === '' }" @click="userRoleFilter = ''">全部用户</button>
+            <button class="module-btn" :class="{ active: userRoleFilter === 'student' }" @click="userRoleFilter = 'student'">学生群体</button>
+            <button class="module-btn" :class="{ active: userRoleFilter === 'company' }" @click="userRoleFilter = 'company'">企业群体</button>
+          </div>
           <div class="toolbar-row">
             <input v-model="userKeyword" placeholder="搜索姓名 / 邮箱 / 角色" />
             <select v-model="userSort">
@@ -215,7 +220,9 @@
             <input v-model="verificationKeyword" placeholder="搜索请求ID / 企业ID / 学生ID / 字段" />
             <select v-model="verificationStatus">
               <option value="">全部状态</option>
-              <option value="pending">待审核</option>
+              <option value="pending_student_group">待学生确认</option>
+              <option value="pending_admin">待校方审核</option>
+              <option value="student_rejected">学生已拒绝</option>
               <option value="approved">已通过</option>
               <option value="rejected">已驳回</option>
             </select>
@@ -235,14 +242,15 @@
                 <div>
                   <strong>请求 #{{ item.id }}</strong>
                   <p class="mono">企业 {{ item.company_id }} -> 学生 {{ item.student_id }}</p>
-                  <p class="mono">字段：{{ (item.fields || []).join(', ') || '无' }}</p>
+                  <p class="mono">字段：{{ formatVerificationFields(item.fields) }}</p>
+                  <p class="mono">阶段：{{ verificationStage(item.status) }}</p>
                 </div>
                 <div>
                   <StatusPill kind="verify" :status="item.status" />
                 </div>
                 <div class="actions">
-                  <button class="btn btn-outline" :disabled="item.status === 'approved'" @click.stop="review(item, 'approved')">通过</button>
-                  <button class="btn btn-outline" :disabled="item.status === 'rejected'" @click.stop="review(item, 'rejected')">驳回</button>
+                  <button class="btn btn-outline" :disabled="!canTeacherReview(item) || item.status === 'approved'" @click.stop="review(item, 'approved')">通过</button>
+                  <button class="btn btn-outline" :disabled="!canTeacherReview(item) || item.status === 'rejected'" @click.stop="review(item, 'rejected')">驳回</button>
                 </div>
               </div>
             </template>
@@ -454,6 +462,7 @@ const analytics = ref(null);
 const usersLoading = ref(false);
 const lastLoadedAt = ref('');
 const userKeyword = ref('');
+const userRoleFilter = ref('');
 const userSort = ref('latest');
 const userPage = ref(1);
 const USER_PAGE_SIZE = 8;
@@ -492,12 +501,30 @@ const logColumns = [
   { key: 'detail', label: '日志详情', width: '2fr' },
   { key: 'time', label: '时间', width: 'auto' }
 ];
-const pendingVerificationCount = computed(() => verifyRequests.value.filter((item) => item.status === 'pending').length);
+const pendingVerificationCount = computed(() =>
+  verifyRequests.value.filter((item) => ['pending_admin', 'pending'].includes(String(item.status || ''))).length
+);
+
+const verificationFieldLabels = {
+  name: '姓名',
+  student_no: '学号',
+  school: '学校',
+  major: '专业',
+  grade: '年级',
+  phone: '手机号',
+  email: '邮箱',
+  education: '学历',
+  skills: '技能标签',
+  awards: '获奖经历',
+  internships: '实习经历',
+  projects: '项目经历'
+};
 
 const filteredUsers = computed(() => {
   const keyword = String(userKeyword.value || '').trim().toLowerCase();
-  if (!keyword) return users.value;
   return users.value.filter((user) => {
+    if (userRoleFilter.value && user.role !== userRoleFilter.value) return false;
+    if (!keyword) return true;
     const target = [user.name, user.email, user.role]
       .map((item) => String(item || '').toLowerCase())
       .join(' ');
@@ -562,7 +589,13 @@ const filteredVerificationRequests = computed(() => {
   const keyword = String(verificationKeyword.value || '').trim().toLowerCase();
   const status = String(verificationStatus.value || '');
   return verifyRequests.value.filter((item) => {
-    if (status && item.status !== status) return false;
+    if (status) {
+      if (status === 'pending_student_group') {
+        if (!['pending', 'pending_student'].includes(String(item.status || ''))) return false;
+      } else if (item.status !== status) {
+        return false;
+      }
+    }
     if (!keyword) return true;
     const target = [
       item.id,
@@ -716,6 +749,26 @@ function announcementPreview(value) {
   return `${text.slice(0, 70)}...`;
 }
 
+function formatVerificationFields(fields) {
+  const list = Array.isArray(fields) ? fields : [];
+  if (!list.length) return '无';
+  return list.map((field) => verificationFieldLabels[field] || String(field || '')).filter(Boolean).join('、');
+}
+
+function verificationStage(status) {
+  if (status === 'pending' || status === 'pending_student') return '等待学生确认';
+  if (status === 'pending_admin') return '等待校方审核';
+  if (status === 'student_rejected') return '学生已拒绝授权';
+  if (status === 'approved') return '校方已通过';
+  if (status === 'rejected') return '校方已驳回';
+  return status || '未知';
+}
+
+function canTeacherReview(item) {
+  const status = String(item?.status || '');
+  return status === 'pending_admin' || status === 'pending';
+}
+
 function switchTab(key, options = { syncRoute: true }) {
   const { syncRoute = true } = options;
   if (!adminTabs.some((item) => item.key === key)) return;
@@ -825,17 +878,30 @@ async function toggleAnnouncementStatus(item) {
 }
 
 async function review(item, status) {
+  if (!canTeacherReview(item)) {
+    toast.info('当前状态不可直接审核，请等待学生确认后再处理');
+    return;
+  }
   const result = status === 'approved' ? '学校核验通过' : '学校核验驳回';
   try {
     await updateVerificationRequest(item.id, { status, result });
     await loadAll();
     toast.success(status === 'approved' ? '核验已通过' : '核验已驳回');
   } catch (err) {
+    const msg = String(err?.message || '');
+    if (msg.includes('not ready for school review')) {
+      toast.warn('该请求还未到校方审核阶段');
+      return;
+    }
     toast.error('核验操作失败');
   }
 }
 
 watch([userKeyword, userSort], () => {
+  userPage.value = 1;
+});
+
+watch(userRoleFilter, () => {
   userPage.value = 1;
 });
 
@@ -913,6 +979,13 @@ onMounted(() => {
   gap: 10px;
   flex-wrap: wrap;
   margin-bottom: 14px;
+}
+
+.role-filter-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
 }
 
 .overview-strip {

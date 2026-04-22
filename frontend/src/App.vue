@@ -121,7 +121,9 @@ const navItems = computed(() => {
       { label: t('nav.favorites'), path: "/favorites" },
       { label: t('nav.viewHistory'), path: "/view-history" },
       { label: t('nav.ai'), path: "/ai" },
+      { label: t('nav.rag'), path: "/rag" },
       { label: t('nav.interview'), path: "/interview-flow" },
+      { label: t('nav.notifications'), path: "/notifications" },
       { label: t('nav.messages'), path: "/messages", badge: msgBadge },
       { label: t('nav.profile'), path: "/profile" }
     ];
@@ -130,9 +132,11 @@ const navItems = computed(() => {
     return [
       { label: t('nav.dashboard'), path: "/dashboard" },
       { label: t('nav.jobManagement'), path: "/jobs" },
-      { label: t('nav.companyCenter'), path: "/company-center" },
+      { label: t('nav.companyCenter'), path: "/company-center?tab=candidates" },
       { label: t('nav.ai'), path: "/ai" },
-      { label: t('nav.aiInterview'), path: "/interview-flow" },
+      { label: t('nav.rag'), path: "/rag" },
+      { label: t('nav.aiInterview'), path: "/ai?tab=company-screening" },
+      { label: t('nav.notifications'), path: "/notifications" },
       { label: t('nav.messages'), path: "/messages", badge: msgBadge }
     ];
   }
@@ -140,7 +144,10 @@ const navItems = computed(() => {
     { label: t('nav.dashboard'), path: "/dashboard" },
     { label: t('nav.companies'), path: "/companies" },
     { label: t('nav.adminCenter'), path: "/admin-center" },
-    { label: t('nav.messages'), path: "/messages", badge: msgBadge }
+    { label: t('nav.collegeInsights'), path: "/college-insights" },
+    { label: t('nav.rag'), path: "/rag" },
+    { label: t('nav.messages'), path: "/messages", badge: msgBadge },
+    { label: t('nav.notifications'), path: "/notifications" }
   ];
 });
 

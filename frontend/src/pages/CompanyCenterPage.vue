@@ -172,19 +172,25 @@
             <div>
               <strong>{{ talent.name }}</strong>
               <p class="mono">{{ talent.major }} · {{ talent.grade }}</p>
+              <p class="mono">实习意向：{{ internshipStatusText(talent.accept_internship) }}</p>
             </div>
             <div class="actions">
               <span class="tag mono">匹配度 {{ talent.match_score }}%</span>
+              <span class="tag mono internship-tag" :class="internshipStatusClass(talent.accept_internship)">
+                {{ internshipStatusText(talent.accept_internship) }}
+              </span>
               <button class="btn btn-outline" @click="requestVerify(talent.student_id)">申请核验</button>
             </div>
           </div>
           <div class="divider"></div>
           <h3>核验请求</h3>
           <div v-if="verifyRequests.length === 0" class="mono">暂无核验请求</div>
-          <div v-else class="talent" v-for="item in verifyRequests" :key="item.id">
+          <div v-else class="talent verify-item" v-for="item in verifyRequests" :key="item.id">
             <div>
               <strong>请求 #{{ item.id }}</strong>
-              <p class="mono">学生 {{ item.student_id }} · 字段 {{ (item.fields || []).join(', ') || '无' }}</p>
+              <p class="mono">学生 {{ item.student_id }} · 字段 {{ formatVerificationFields(item.fields) }}</p>
+              <p class="mono">{{ verificationProgressText(item.status) }}</p>
+              <p v-if="item.result" class="mono">结果：{{ item.result }}</p>
             </div>
             <StatusPill kind="verify" :status="item.status" />
           </div>
@@ -262,6 +268,7 @@
                 </div>
                 <div class="candidate-col">
                   <p class="mono">{{ item.school }} · {{ item.major }} · {{ item.grade }}</p>
+                  <p class="mono">实习意向：{{ internshipStatusText(item.accept_internship) }}</p>
                 </div>
                 <div class="candidate-col">
                   <p class="mono">{{ (item.skills || []).join(', ') || '无' }}</p>
@@ -849,6 +856,15 @@ async function requestVerify(studentId) {
     await loadVerifyRequests();
     toast.success('核验请求已提交');
   } catch (err) {
+    const msg = String(err?.message || '');
+    if (msg.includes('open verification request already exists')) {
+      toast.warn('该学生已有进行中的核验请求，请等待结果后再发起');
+      return;
+    }
+    if (msg.includes('Please provide verification fields')) {
+      toast.warn('请先选择需要核验的字段');
+      return;
+    }
     toast.error('核验请求提交失败');
   }
 }
@@ -897,6 +913,44 @@ function statusClass(status) {
   if (status === 'rejected') return 'is-rejected';
   if (status === 'disabled') return 'is-disabled';
   return 'is-pending';
+}
+
+const verificationFieldLabels = {
+  name: '姓名',
+  student_no: '学号',
+  school: '学校',
+  major: '专业',
+  grade: '年级',
+  phone: '手机号',
+  email: '邮箱',
+  education: '学历',
+  skills: '技能标签',
+  awards: '获奖经历',
+  internships: '实习经历',
+  projects: '项目经历'
+};
+
+function formatVerificationFields(fields) {
+  const list = Array.isArray(fields) ? fields : [];
+  if (!list.length) return '无';
+  return list.map((field) => verificationFieldLabels[field] || String(field || '')).filter(Boolean).join('、');
+}
+
+function verificationProgressText(status) {
+  if (status === 'pending' || status === 'pending_student') return '进度：等待学生确认授权';
+  if (status === 'pending_admin') return '进度：学生已同意，等待校方审核';
+  if (status === 'student_rejected') return '进度：学生已拒绝本次核验';
+  if (status === 'approved') return '进度：校方已审核通过';
+  if (status === 'rejected') return '进度：校方已审核驳回';
+  return `进度：${status || '未知'}`;
+}
+
+function internshipStatusText(value) {
+  return value === false ? '暂不接受实习' : '接受实习';
+}
+
+function internshipStatusClass(value) {
+  return value === false ? 'internship-off' : 'internship-on';
 }
 
 function simplifyAsset(url) {
@@ -1257,6 +1311,31 @@ watch(candidateTotalPages, (total) => {
   align-items: center;
   padding: 10px 0;
   border-bottom: 1px dashed var(--line);
+}
+
+.verify-item {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.verify-item p {
+  margin: 6px 0 0;
+}
+
+.internship-tag {
+  border: 1px solid transparent;
+}
+
+.internship-tag.internship-on {
+  color: #0f8f59;
+  border-color: rgba(24, 160, 88, 0.24);
+  background: rgba(24, 160, 88, 0.12);
+}
+
+.internship-tag.internship-off {
+  color: #8a6400;
+  border-color: rgba(240, 160, 32, 0.28);
+  background: rgba(240, 160, 32, 0.16);
 }
 
 .talent-clickable {

@@ -21,15 +21,50 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _SENTENCE_SPLIT = re.compile(r'(?<=[。！？.!?\n])\s*')
+_MARKDOWN_HEADING_RE = re.compile(r'^\s{0,3}#{1,6}\s+\S+', re.M)
 
 
-def chunk_text(text: str, chunk_size: int = 400, overlap: int = 80) -> list[str]:
+def _resolve_chunk_params(text: str, chunk_size: int | None, overlap: int | None) -> tuple[int, int]:
+    """Auto-tune chunk parameters based on content length and heading density."""
+    length = len(text)
+    heading_count = len(_MARKDOWN_HEADING_RE.findall(text))
+    base_size = int(chunk_size or 400)
+
+    if length <= 1200:
+        tuned_size = max(220, min(base_size, 320))
+    elif length <= 5000:
+        tuned_size = max(280, min(max(base_size, 420), 520))
+    elif length <= 12000:
+        tuned_size = max(360, min(max(base_size, 560), 700))
+    else:
+        tuned_size = max(420, min(max(base_size, 680), 920))
+
+    # Richly structured markdown is better with slightly smaller chunks.
+    if heading_count >= 6:
+        tuned_size = max(220, int(tuned_size * 0.88))
+
+    tuned_overlap = int(overlap if overlap is not None else tuned_size * 0.18)
+    tuned_overlap = max(30, min(tuned_overlap, 180, int(tuned_size * 0.45)))
+    return tuned_size, tuned_overlap
+
+
+def _split_sections(text: str) -> list[str]:
+    """Split text into semantic sections, preferring markdown heading boundaries."""
+    if _MARKDOWN_HEADING_RE.search(text):
+        sections = [part.strip() for part in re.split(r'(?m)(?=^\s{0,3}#{1,6}\s+\S+)', text) if part.strip()]
+        if sections:
+            return sections
+    return [part.strip() for part in re.split(r'\n{2,}', text) if part.strip()]
+
+
+def chunk_text(text: str, chunk_size: int | None = 400, overlap: int | None = 80) -> list[str]:
     """Split *text* into overlapping chunks of roughly *chunk_size* characters."""
     text = text.strip()
     if not text:
         return []
+    chunk_size, overlap = _resolve_chunk_params(text, chunk_size, overlap)
 
-    paragraphs = re.split(r'\n{2,}', text)
+    paragraphs = _split_sections(text)
     sentences: list[str] = []
     for para in paragraphs:
         parts = _SENTENCE_SPLIT.split(para.strip())
@@ -185,8 +220,8 @@ def retrieve_chunks(
 
 def chunk_and_embed(
     text: str,
-    chunk_size: int = 400,
-    overlap: int = 80,
+    chunk_size: int | None = 400,
+    overlap: int | None = 80,
 ) -> list[tuple[str, list[float]]]:
     """Chunk text and return (chunk_content, embedding) pairs."""
     chunks = chunk_text(text, chunk_size, overlap)

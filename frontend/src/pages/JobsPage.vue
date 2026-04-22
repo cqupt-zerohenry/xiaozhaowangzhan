@@ -3,35 +3,62 @@
     <section class="page-hero">
       <div class="container">
         <div class="hero-panel">
-          <div class="hero-row">
-            <div>
+          <div class="boss-layout">
+            <div class="boss-intro">
               <h1>{{ title }}</h1>
               <p>{{ subtitle }}</p>
+              <p class="boss-note">筛选更集中，信息层级更清楚，把高频操作放在同一区域，减少来回跳视线。</p>
             </div>
-            <div class="search-bar">
-              <input v-model="keyword" placeholder="岗位名称或关键词" />
-              <button class="btn" @click="loadJobs">搜索</button>
+            <div class="boss-main">
+              <div class="boss-primary-row">
+                <label class="boss-field">
+                  <span>公司</span>
+                  <input v-model="company" placeholder="公司名称" @keyup.enter="loadJobs" />
+                </label>
+                <label class="boss-field">
+                  <span>地点</span>
+                  <input v-model="city" placeholder="城市" @keyup.enter="loadJobs" />
+                </label>
+                <label class="boss-field">
+                  <span>学历</span>
+                  <input v-model="education" placeholder="学历" @keyup.enter="loadJobs" />
+                </label>
+                <label class="boss-field boss-field-keyword">
+                  <span>关键词</span>
+                  <input v-model="keyword" placeholder="岗位名称或关键词" @keyup.enter="loadJobs" />
+                </label>
+                <button class="btn boss-btn-primary" @click="loadJobs">搜索</button>
+                <button class="btn boss-btn-ghost" @click="clearFilter">清空</button>
+              </div>
+
+              <div class="quick-tags boss-tags">
+                <button
+                  v-for="cat in quickCategories"
+                  :key="cat"
+                  class="chip"
+                  :class="{ active: keyword === cat }"
+                  @click="onQuickCategoryClick(cat)"
+                >{{ cat }}</button>
+              </div>
+
+              <div class="boss-secondary-row">
+                <label class="boss-field boss-field-mini">
+                  <span>最低薪资</span>
+                  <input v-model.number="salaryMin" type="number" placeholder="K" @keyup.enter="loadJobs" />
+                </label>
+                <label class="boss-field boss-field-mini">
+                  <span>排序</span>
+                  <select v-model="sort">
+                    <option value="">默认排序</option>
+                    <option value="latest">最新发布</option>
+                  </select>
+                </label>
+                <div class="boss-secondary-actions">
+                  <button class="btn boss-btn-ghost" @click="saveFilterPreset">保存筛选</button>
+                  <button class="btn boss-btn-primary" @click="loadJobs">立即搜索</button>
+                </div>
+              </div>
             </div>
-          </div>
-          <div class="quick-tags">
-            <button
-              v-for="cat in quickCategories"
-              :key="cat"
-              class="chip"
-              :class="{ active: keyword === cat }"
-              @click="onQuickCategoryClick(cat)"
-            >{{ cat }}</button>
-          </div>
-          <div class="filters">
-            <input v-model="company" placeholder="公司名称" />
-            <input v-model="city" placeholder="城市" />
-            <input v-model="education" placeholder="学历要求" />
-            <input v-model.number="salaryMin" type="number" placeholder="最低薪资" />
-            <select v-model="sort">
-              <option value="">默认排序</option>
-              <option value="latest">最新发布</option>
-            </select>
-            <button class="btn btn-outline" @click="clearFilter">清空</button>
           </div>
         </div>
       </div>
@@ -313,6 +340,7 @@ async function toggleFavorite(jobId) {
 }
 
 const quickCategories = ['后端开发', '前端开发', 'AI算法', '产品经理', '测试', '运维/SRE', '数据分析', '设计'];
+const FILTER_PRESET_KEY = 'jobs_filter_preset_v1';
 const keyword = ref('');
 const company = ref('');
 const city = ref('');
@@ -349,14 +377,21 @@ const skillsInput = ref('');
 async function loadJobs() {
   loadingJobs.value = true;
   try {
-    jobs.value = await fetchJobs({
+    const list = await fetchJobs({
       keyword: keyword.value,
       company: company.value,
+      company_id: role.value === 'company' ? auth.user.value?.id : undefined,
       city: city.value,
       education: education.value,
       salary_min: salaryMin.value,
       sort: sort.value
     });
+    if (role.value === 'company') {
+      const myCompanyId = Number(auth.user.value?.id || 0);
+      jobs.value = (list || []).filter((item) => Number(item.company_id) === myCompanyId);
+    } else {
+      jobs.value = list || [];
+    }
     await loadJobCompanies(jobs.value);
     listPage.value = 1;
   } catch (err) {
@@ -660,6 +695,41 @@ function onQuickCategoryClick(cat) {
   loadJobs();
 }
 
+function saveFilterPreset() {
+  if (typeof window === 'undefined') return;
+  try {
+    const preset = {
+      keyword: keyword.value,
+      company: company.value,
+      city: city.value,
+      education: education.value,
+      salaryMin: salaryMin.value,
+      sort: sort.value
+    };
+    localStorage.setItem(FILTER_PRESET_KEY, JSON.stringify(preset));
+    toast.success('筛选条件已保存');
+  } catch (_) {
+    toast.error('保存失败，请稍后重试');
+  }
+}
+
+function restoreFilterPreset() {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(FILTER_PRESET_KEY);
+    if (!raw) return;
+    const preset = JSON.parse(raw);
+    keyword.value = String(preset.keyword || '');
+    company.value = String(preset.company || '');
+    city.value = String(preset.city || '');
+    education.value = String(preset.education || '');
+    salaryMin.value = preset.salaryMin === null || preset.salaryMin === undefined ? '' : String(preset.salaryMin);
+    sort.value = String(preset.sort || '');
+  } catch (_) {
+    // Ignore invalid local cache to avoid blocking page render.
+  }
+}
+
 function resetJobForm() {
   editingJobId.value = null;
   jobForm.value = {
@@ -795,6 +865,7 @@ watch(totalCompanyApplicationPages, (total) => {
 });
 
 onMounted(async () => {
+  restoreFilterPreset();
   await loadJobs();
   await loadApplications();
   await loadResumes();
@@ -814,70 +885,186 @@ onMounted(async () => {
 }
 
 .hero-panel {
-  border-radius: 22px;
-  border: 1px solid #cfeadb;
-  background: linear-gradient(130deg, #f3fbf7 0%, #eff9f3 56%, #ffffff 100%);
-  box-shadow: 0 16px 30px rgba(15, 122, 70, 0.08);
-  padding: clamp(16px, 2.2vw, 26px);
+  border-radius: 24px;
+  border: 1px solid #d7ece1;
+  background: linear-gradient(140deg, #f3faf6 0%, #f8fdf9 55%, #ffffff 100%);
+  box-shadow: 0 14px 28px rgba(15, 122, 70, 0.08);
+  padding: clamp(16px, 2.1vw, 24px);
 }
 
-.hero-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.boss-layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
   gap: 16px;
-  flex-wrap: wrap;
+  align-items: stretch;
 }
 
-.search-bar {
+.boss-intro {
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 2px;
 }
 
-.search-bar input {
-  min-width: 260px;
-  height: 44px;
+.boss-intro h1 {
+  margin: 0;
+  font-size: clamp(46px, 4.8vw, 58px);
+  line-height: 1;
+  letter-spacing: 0.5px;
+  color: #10261f;
+}
+
+.boss-intro p {
+  margin: 0;
+  color: #5d766d;
+  font-size: 15px;
+  line-height: 1.5;
+  max-width: 230px;
+}
+
+.boss-note {
+  font-size: 13px;
+  color: #7d938b;
+}
+
+.boss-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.boss-primary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.boss-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 54px;
+  border: 1px solid #d7e9df;
+  border-radius: 14px;
+  background: #fff;
+  padding: 8px 12px;
+  flex: 1 1 140px;
+}
+
+.boss-field > span {
+  color: #96a8a1;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.boss-field input,
+.boss-field select {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  min-width: 64px;
+  height: auto;
+  font-size: 15px;
+  line-height: 1.3;
+  color: #1e3530;
+  font-weight: 600;
+}
+
+.boss-field input::placeholder {
+  color: #a5b4af;
+  font-weight: 600;
+}
+
+.boss-field select {
+  appearance: none;
+  cursor: pointer;
+}
+
+.boss-field-keyword {
+  min-width: 220px;
+  flex: 1.4 1 240px;
+}
+
+.boss-field-mini {
+  min-width: 160px;
+  flex: 0.8 1 170px;
+}
+
+.boss-btn-primary,
+.boss-btn-ghost {
+  height: 52px;
+  border-radius: 14px;
+  padding: 0 18px;
+  min-width: 104px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.boss-btn-primary {
+  background: linear-gradient(180deg, #45ac69 0%, #2f9758 100%);
+  border: none;
+  box-shadow: 0 12px 24px rgba(43, 146, 84, 0.28);
+}
+
+.boss-btn-primary:hover {
+  transform: translateY(-1px);
+}
+
+.boss-btn-ghost {
+  background: #fff;
+  color: #20362f;
+  border: 1px solid #d9e8e1;
 }
 
 .quick-tags {
   display: flex;
-  gap: 8px;
+  gap: 7px;
   flex-wrap: wrap;
-  margin-top: 12px;
+}
+
+.boss-tags {
+  margin-top: 2px;
 }
 
 .chip {
-  border: 1px solid var(--line);
+  border: 1px solid #d9e8e2;
   background: #fff;
   border-radius: 999px;
-  padding: 6px 14px;
+  padding: 7px 13px;
   font-size: 13px;
+  color: #4d645d;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
+.chip:hover {
+  border-color: #bfded0;
+  color: #2d4d42;
+}
+
 .chip.active {
-  border-color: var(--accent);
-  background: rgba(24, 160, 88, 0.1);
-  color: var(--accent-dark);
+  border-color: #b2dcc6;
+  background: rgba(24, 160, 88, 0.12);
+  color: #2d8f56;
   font-weight: 600;
 }
 
-.filters {
-  margin-top: 14px;
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+.boss-secondary-row {
+  display: flex;
+  gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
-.filters select {
-  height: 44px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  padding: 0 12px;
+.boss-secondary-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .form-grid {
@@ -1099,7 +1286,43 @@ onMounted(async () => {
   color: var(--accent);
 }
 
+@media (max-width: 1180px) {
+  .boss-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .boss-intro p {
+    max-width: none;
+  }
+}
+
 @media (max-width: 860px) {
+  .boss-primary-row {
+    width: 100%;
+  }
+
+  .boss-field,
+  .boss-field-keyword,
+  .boss-field-mini {
+    min-width: 100%;
+    flex-basis: 100%;
+  }
+
+  .boss-btn-primary,
+  .boss-btn-ghost {
+    width: 100%;
+    font-size: 15px;
+  }
+
+  .boss-secondary-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .boss-secondary-actions .btn {
+    flex: 1;
+  }
+
   .list-toolbar {
     flex-direction: column;
     align-items: flex-start;

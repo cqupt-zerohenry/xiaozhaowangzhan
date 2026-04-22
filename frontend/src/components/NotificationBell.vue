@@ -8,7 +8,7 @@
         <button v-if="notifications.length" class="btn-link" @click="readAll">全部已读</button>
       </div>
       <div v-if="!notifications.length" class="bell-empty">暂无通知</div>
-      <div v-for="n in notifications.slice(0, 8)" :key="n.id" class="bell-item" :class="{ unread: !n.is_read }" @click="onClickNotification(n)">
+      <div v-for="n in displayNotifications" :key="n.id" class="bell-item" :class="{ unread: !n.is_read }" @click="onClickNotification(n)">
         <div class="bell-item-title">{{ n.title }}</div>
         <div class="bell-item-content">{{ n.content.slice(0, 60) }}</div>
         <div class="bell-item-time mono">{{ formatTime(n.create_time) }}</div>
@@ -19,14 +19,23 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { fetchNotifications, fetchNotificationUnreadCount, markNotificationRead, markAllNotificationsRead } from '../services/api.js'
+import { useAuth } from '../store/auth.js'
+import { compareNotifications, resolveNotificationTarget } from '../utils/notificationRoute.js'
 import toast from '../utils/toast.js'
 
 const unreadCount = ref(0)
 const notifications = ref([])
 const showDropdown = ref(false)
+const router = useRouter()
+const auth = useAuth()
 let timer = null
+
+const displayNotifications = computed(() => {
+  return [...notifications.value].sort(compareNotifications).slice(0, 8)
+})
 
 function formatTime(v) {
   return v ? String(v).replace('T', ' ').slice(0, 16) : ''
@@ -57,6 +66,12 @@ async function onClickNotification(n) {
     n.is_read = true
     unreadCount.value = Math.max(0, unreadCount.value - 1)
   }
+  const target = resolveNotificationTarget(n, auth.role.value)
+  showDropdown.value = false
+  router.push({
+    path: target.path,
+    query: target.query || {}
+  })
 }
 
 async function readAll() {

@@ -125,6 +125,7 @@ def delete_job(
 def list_jobs(
     keyword: str | None = Query(default=None),
     company: str | None = Query(default=None),
+    company_id: int | None = Query(default=None),
     city: str | None = Query(default=None),
     education: str | None = Query(default=None),
     industry: str | None = Query(default=None),
@@ -136,6 +137,7 @@ def list_jobs(
         {
             'keyword': keyword,
             'company': company,
+            'company_id': company_id,
             'city': city,
             'education': education,
             'industry': industry,
@@ -172,6 +174,9 @@ def list_jobs(
         if not company_ids:
             return []
         filters.append(Job.company_id.in_(company_ids))
+
+    if company_id is not None:
+        filters.append(Job.company_id == company_id)
 
     if industry:
         company_ids = db.scalars(

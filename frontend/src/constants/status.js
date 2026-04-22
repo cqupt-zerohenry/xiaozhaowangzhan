@@ -46,7 +46,10 @@ export function companyStatusLabel(status) {
 }
 
 export const VERIFY_STATUS_MAP = {
-  pending: '待处理',
+  pending: '待学生确认',
+  pending_student: '待学生确认',
+  pending_admin: '待校方审核',
+  student_rejected: '学生已拒绝',
   approved: '已通过',
   rejected: '已驳回'
 };

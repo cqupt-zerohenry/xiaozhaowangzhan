@@ -1,19 +1,87 @@
-"""Resume parsing service: extract structured data from PDF/DOCX files."""
+"""Resume parsing service: extract text first, then build structured resume data."""
 from __future__ import annotations
 
 import io
+import json
 import logging
 import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+SUPPORTED_RESUME_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt', 'md'}
+_TEXT_EXTRACT_SCRIPT = Path(__file__).resolve().parents[1] / 'scripts' / 'resume_text_extractor.py'
+
+
+def _normalize_text(text: str) -> str:
+    if not text:
+        return ''
+    normalized = (
+        text.replace('\r\n', '\n')
+        .replace('\r', '\n')
+        .replace('\x00', '')
+        .replace('\u200b', '')
+    )
+    normalized = re.sub(r'\n{3,}', '\n\n', normalized)
+    return normalized.strip()
+
+
+def _decode_text_bytes(file_bytes: bytes) -> str:
+    for enc in ('utf-8', 'utf-8-sig', 'gb18030', 'gbk', 'latin-1'):
+        try:
+            return file_bytes.decode(enc)
+        except Exception:
+            continue
+    return file_bytes.decode('utf-8', errors='ignore')
+
+
+def _extract_text_via_script(file_bytes: bytes, filename: str) -> str:
+    if not _TEXT_EXTRACT_SCRIPT.exists():
+        return ''
+
+    suffix = Path(filename).suffix or '.txt'
+    tmp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as fp:
+            fp.write(file_bytes)
+            tmp_path = Path(fp.name)
+
+        proc = subprocess.run(
+            [sys.executable, str(_TEXT_EXTRACT_SCRIPT), str(tmp_path)],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='ignore',
+            timeout=25,
+            check=False,
+        )
+        if not proc.stdout.strip():
+            if proc.stderr.strip():
+                logger.warning('Resume text script stderr: %s', proc.stderr.strip())
+            return ''
+        payload = json.loads(proc.stdout)
+        return _normalize_text(str(payload.get('text') or ''))
+    except Exception:
+        logger.exception('Script-based resume text extraction failed')
+        return ''
+    finally:
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except Exception:
+                logger.warning('Failed to cleanup temp resume file: %s', tmp_path)
 
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
     try:
         from PyPDF2 import PdfReader
+
         reader = PdfReader(io.BytesIO(file_bytes))
         pages = [page.extract_text() or '' for page in reader.pages]
-        return '\n'.join(pages)
+        return _normalize_text('\n'.join(pages))
     except Exception:
         logger.exception('Failed to extract text from PDF')
         return ''
@@ -22,11 +90,38 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
 def extract_text_from_docx(file_bytes: bytes) -> str:
     try:
         from docx import Document
+
         doc = Document(io.BytesIO(file_bytes))
-        return '\n'.join(p.text for p in doc.paragraphs)
+        return _normalize_text('\n'.join(p.text for p in doc.paragraphs))
     except Exception:
         logger.exception('Failed to extract text from DOCX')
         return ''
+
+
+def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
+    """Extract plain text from uploaded file by extension."""
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+    if ext in SUPPORTED_RESUME_EXTENSIONS:
+        text = _extract_text_via_script(file_bytes, filename)
+        if text:
+            return text
+
+    if ext == 'pdf':
+        return extract_text_from_pdf(file_bytes)
+    if ext == 'docx':
+        return extract_text_from_docx(file_bytes)
+    if ext == 'doc':
+        return ''
+    return _normalize_text(_decode_text_bytes(file_bytes))
+
+
+def _normalize_string_list(value: object) -> list[str]:
+    if isinstance(value, str):
+        parts = re.split(r'[，,;；\n]+', value)
+        return [p.strip() for p in parts if p and p.strip()]
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return []
 
 
 # Common tech skills for keyword matching
@@ -53,7 +148,7 @@ def parse_resume_rule_based(text: str) -> dict:
         'major': '',
         'skills': [],
         'experience': [],
-        'raw_text': text,
+        'raw_text': _normalize_text(text),
     }
 
     lines = [l.strip() for l in text.split('\n') if l.strip()]
@@ -126,9 +221,8 @@ def parse_resume_llm(text: str) -> dict | None:
         prompt = (
             '请从以下简历文本中提取结构化信息，以JSON格式返回，包含字段：'
             'name, phone, email, school, major, skills(数组), experience(数组)。\n\n'
-            f'简历内容：\n{text[:3000]}'
+            f'简历内容：\n{text[:5000]}'
         )
-        import json
         response = chat('你是简历解析助手，只输出JSON。', prompt, temperature=0.1)
         if response:
             # Try to extract JSON from response
@@ -142,15 +236,7 @@ def parse_resume_llm(text: str) -> dict | None:
 
 def parse_resume(file_bytes: bytes, filename: str) -> dict:
     """Main entry: extract text then parse structured data."""
-    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-    if ext == 'pdf':
-        text = extract_text_from_pdf(file_bytes)
-    elif ext in ('docx', 'doc'):
-        text = extract_text_from_docx(file_bytes)
-    elif ext in ('txt', 'md'):
-        text = file_bytes.decode('utf-8', errors='ignore')
-    else:
-        text = file_bytes.decode('utf-8', errors='ignore')
+    text = extract_text_from_file(file_bytes, filename)
 
     if not text.strip():
         return {'name': '', 'phone': '', 'email': '', 'school': '', 'major': '',
@@ -159,7 +245,15 @@ def parse_resume(file_bytes: bytes, filename: str) -> dict:
     # Try LLM first, fall back to rule-based
     llm_result = parse_resume_llm(text)
     if llm_result:
-        llm_result.setdefault('raw_text', text)
-        return llm_result
+        return {
+            'name': str(llm_result.get('name') or '').strip(),
+            'phone': str(llm_result.get('phone') or '').strip(),
+            'email': str(llm_result.get('email') or '').strip(),
+            'school': str(llm_result.get('school') or '').strip(),
+            'major': str(llm_result.get('major') or '').strip(),
+            'skills': _normalize_string_list(llm_result.get('skills')),
+            'experience': _normalize_string_list(llm_result.get('experience')),
+            'raw_text': text,
+        }
 
     return parse_resume_rule_based(text)

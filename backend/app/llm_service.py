@@ -7,7 +7,9 @@ All calls have a rule-based fallback so the system still works without an API ke
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 
 from openai import OpenAI
 
@@ -120,11 +122,15 @@ def generate_rag_answer(
     """Use LLM to synthesize an answer from retrieved context."""
     sys = (
         '你是一位校园招聘平台的职业规划顾问。请根据用户的问题和检索到的知识库内容，'
-        '给出专业、有条理的回答。如果检索内容不足以回答，可以结合你的知识补充，但要标注哪些来自知识库。'
-        '语言使用中文。'
+        '给出专业、有条理的回答。如果检索内容不足以回答，可以结合你的知识补充。'
+        '回答要求：'
+        '1) 使用中文自然语言，控制在 3~5 句；'
+        '2) 总长度尽量不超过 220 字；'
+        '3) 不要使用 Markdown 标题、表格、代码块、分隔线；'
+        '4) 不要输出大段清单，只保留最关键建议。'
     )
     user = f'问题：{question}\n\n检索到的知识库内容：\n{retrieved_context}'
-    return chat(sys, user, temperature=0.5, max_tokens=1500)
+    return chat(sys, user, temperature=0.4, max_tokens=520)
 
 
 def generate_screening_evaluation(
@@ -243,3 +249,193 @@ def generate_dimension_comments(
             if name and comment.strip():
                 result[name] = comment.strip()
     return result if result else None
+
+
+def _extract_json_from_text(text: str) -> dict | None:
+    """Extract and parse JSON object from free-form model output."""
+    if not text:
+        return None
+    raw = text.strip()
+
+    # Remove markdown fence if present
+    if raw.startswith('```'):
+        raw = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.IGNORECASE)
+        raw = re.sub(r'\s*```$', '', raw)
+
+    # Try whole text first
+    try:
+        data = json.loads(raw)
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+
+    # Find first JSON object by brace matching
+    start = raw.find('{')
+    if start == -1:
+        return None
+    depth = 0
+    for idx in range(start, len(raw)):
+        ch = raw[idx]
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                candidate = raw[start:idx + 1]
+                try:
+                    data = json.loads(candidate)
+                    if isinstance(data, dict):
+                        return data
+                except Exception:
+                    return None
+    return None
+
+
+def evaluate_interview_answer(
+    *,
+    job_title: str,
+    question: str,
+    answer: str,
+) -> dict | None:
+    """Use LLM to evaluate one interview answer with score and feedback."""
+    sys = (
+        '你是一位资深技术面试官。你需要客观评分并给出可执行建议。'
+        '仅输出 JSON，不要输出任何额外文字。'
+    )
+    user = (
+        '请按以下标准给出 0-100 分：\n'
+        '- 40%：问题匹配度（是否答到题目核心）\n'
+        '- 25%：专业深度（是否体现技术原理/方法）\n'
+        '- 20%：结构表达（条理、清晰度）\n'
+        '- 15%：实践与结果（项目、数据、结果）\n\n'
+        f'岗位：{job_title or "目标岗位"}\n'
+        f'题目：{question}\n'
+        f'回答：{answer}\n\n'
+        '严格输出 JSON，格式如下：\n'
+        '{\n'
+        '  "score": 78,\n'
+        '  "feedback": "一句总体反馈（30-80字）",\n'
+        '  "strengths": ["优点1", "优点2"],\n'
+        '  "improvements": ["改进建议1", "改进建议2"]\n'
+        '}\n'
+        '要求：score 必须是整数；strengths/improvements 至少各 1 条。'
+    )
+    text = chat(sys, user, temperature=0.2, max_tokens=500)
+    if not text:
+        return None
+    data = _extract_json_from_text(text)
+    if not data:
+        return None
+
+    try:
+        score = int(data.get('score'))
+    except Exception:
+        return None
+    score = max(0, min(100, score))
+
+    feedback = str(data.get('feedback') or '').strip()
+    strengths = data.get('strengths') if isinstance(data.get('strengths'), list) else []
+    improvements = data.get('improvements') if isinstance(data.get('improvements'), list) else []
+
+    strengths_clean = [str(item).strip() for item in strengths if str(item).strip()]
+    improvements_clean = [str(item).strip() for item in improvements if str(item).strip()]
+    if not feedback:
+        return None
+    if not strengths_clean:
+        strengths_clean = ['回答覆盖了部分核心点']
+    if not improvements_clean:
+        improvements_clean = ['建议增加具体案例和量化结果']
+
+    return {
+        'score': score,
+        'feedback': feedback,
+        'strengths': strengths_clean[:3],
+        'improvements': improvements_clean[:3],
+    }
+
+
+def evaluate_interview_session(
+    *,
+    job_title: str,
+    qa_items: list[dict],
+) -> dict | None:
+    """Use LLM to provide final interview summary and dimension scores."""
+    if not qa_items:
+        return None
+
+    qa_text = '\n\n'.join(
+        [
+            (
+                f'Q{i + 1}: {item.get("question", "")}\n'
+                f'A{i + 1}: {item.get("answer", "")}\n'
+                f'当前单题分：{item.get("score", 0)}'
+            )
+            for i, item in enumerate(qa_items)
+        ]
+    )
+    sys = (
+        '你是一位面试委员会评估官，请基于整场问答做最终评估。'
+        '仅输出 JSON，不要输出任何解释文本。'
+    )
+    user = (
+        f'岗位：{job_title or "目标岗位"}\n'
+        f'题目数量：{len(qa_items)}\n\n'
+        f'问答记录：\n{qa_text}\n\n'
+        '请输出 JSON，格式必须为：\n'
+        '{\n'
+        '  "total_score": 82,\n'
+        '  "overall_feedback": "总体评价（80-160字）",\n'
+        '  "dimension_scores": [\n'
+        '    {"dimension":"表达完整度","score":80,"comment":"..."},\n'
+        '    {"dimension":"专业深度","score":84,"comment":"..."},\n'
+        '    {"dimension":"逻辑条理","score":79,"comment":"..."},\n'
+        '    {"dimension":"实践经验","score":76,"comment":"..."},\n'
+        '    {"dimension":"综合表现","score":82,"comment":"..."}\n'
+        '  ]\n'
+        '}\n'
+        '要求：所有 score 为 0-100 的整数，dimension_scores 必须正好 5 项。'
+    )
+    text = chat(sys, user, temperature=0.2, max_tokens=1200)
+    if not text:
+        return None
+    data = _extract_json_from_text(text)
+    if not data:
+        return None
+
+    try:
+        total_score = int(data.get('total_score'))
+    except Exception:
+        return None
+    total_score = max(0, min(100, total_score))
+    overall_feedback = str(data.get('overall_feedback') or '').strip()
+    dims = data.get('dimension_scores')
+    if not overall_feedback or not isinstance(dims, list):
+        return None
+
+    dim_result: list[dict] = []
+    for item in dims:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get('dimension') or '').strip()
+        comment = str(item.get('comment') or '').strip()
+        try:
+            score = int(item.get('score'))
+        except Exception:
+            continue
+        if not name:
+            continue
+        dim_result.append({
+            'dimension': name,
+            'score': max(0, min(100, score)),
+            'comment': comment or '基于面试回答综合评估',
+        })
+
+    if len(dim_result) < 5:
+        return None
+
+    return {
+        'total_score': total_score,
+        'overall_feedback': overall_feedback,
+        'dimension_scores': dim_result[:5],
+    }

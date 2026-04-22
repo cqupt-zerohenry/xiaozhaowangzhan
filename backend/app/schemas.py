@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -178,6 +179,7 @@ class ApplicationDetailOut(BaseModel):
     school: str
     major: str
     grade: str
+    accept_internship: bool = True
     skills: list[str] = []
     resume_content: dict | None = None
     resume_file_url: str = ''
@@ -238,6 +240,7 @@ class TalentRecommendResult(BaseModel):
     name: str
     major: str
     grade: str
+    accept_internship: bool = True
     skills: list[str]
     match_score: int
     reason: str
@@ -400,6 +403,10 @@ class VerificationRequestUpdate(BaseModel):
     result: str = ''
 
 
+class VerificationStudentDecision(BaseModel):
+    action: Literal['accept', 'reject']
+
+
 class FavoriteOut(ORMModel):
     id: int
     user_id: int
@@ -501,6 +508,33 @@ class KnowledgeDocumentOut(ORMModel):
     status: str
     file_url: str
     create_time: datetime
+
+
+class KnowledgeEmbeddingRebuildResponse(BaseModel):
+    kb_id: int
+    total_chunks: int = 0
+    reembedded_chunks: int = 0
+    already_ready_chunks: int = 0
+    skipped_empty_chunks: int = 0
+
+
+class KnowledgeChunkPreview(BaseModel):
+    id: int
+    document_id: int
+    chunk_index: int
+    token_count: int = 0
+    char_count: int = 0
+    content: str = ''
+    content_preview: str = ''
+    tags: list[str] = []
+
+
+class KnowledgeChunkListResponse(BaseModel):
+    kb_id: int
+    document_id: int
+    total_chunks: int = 0
+    avg_chunk_chars: int = 0
+    chunks: list[KnowledgeChunkPreview] = []
 
 
 class ResumeOptimizeRequest(BaseModel):
@@ -640,6 +674,11 @@ class InterviewFlowStartRequest(BaseModel):
     template_id: int | None = None
     job_title: str = ''
     question_count: int = Field(default=5, ge=1, le=20)
+    # Optional resume context for personalized questions
+    resume_text: str = ''
+    resume_skills: list[str] = []
+    resume_major: str = ''
+    resume_experience: list[str] = []
 
 
 class InterviewFlowQuestionOut(BaseModel):

@@ -16,7 +16,7 @@
             class="chip"
             :class="{ active: filterType === t.value }"
             :disabled="loading"
-            @click="filterType = t.value; load()"
+            @click="applyFilter(t.value)"
           >
             {{ t.label }}
           </button>
@@ -30,7 +30,7 @@
         <div v-else-if="!notifications.length" class="card empty-state">暂无通知</div>
         <div v-else class="notification-list">
           <article
-            v-for="n in notifications"
+            v-for="n in displayNotifications"
             :key="n.id"
             class="card notification-card"
             :class="{ unread: !n.is_read }"
@@ -43,8 +43,9 @@
               <span class="mono time">{{ formatTime(n.create_time) }}</span>
             </div>
             <p class="content">{{ n.content }}</p>
-            <div class="actions" v-if="!n.is_read">
-              <button class="btn btn-outline btn-sm" @click="markRead(n)">标记已读</button>
+            <div class="actions">
+              <button class="btn btn-outline btn-sm" @click="openDetail(n)">查看详情</button>
+              <button v-if="!n.is_read" class="btn btn-outline btn-sm" @click="markRead(n)">标记已读</button>
             </div>
           </article>
         </div>
@@ -54,13 +55,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { fetchNotifications, markNotificationRead, markAllNotificationsRead } from '../services/api.js'
+import { useAuth } from '../store/auth.js'
+import { compareNotifications, resolveNotificationTarget } from '../utils/notificationRoute.js'
 import toast from '../utils/toast.js'
 
 const notifications = ref([])
 const filterType = ref('')
 const loading = ref(false)
+const route = useRoute()
+const router = useRouter()
+const auth = useAuth()
 const types = [
   { label: '全部', value: '' },
   { label: '投递', value: 'application' },
@@ -68,6 +75,10 @@ const types = [
   { label: '系统', value: 'system' },
   { label: '公告', value: 'announcement' },
 ]
+
+const displayNotifications = computed(() => {
+  return [...notifications.value].sort(compareNotifications)
+})
 
 function formatTime(v) {
   return v ? String(v).replace('T', ' ').slice(0, 16) : ''
@@ -85,14 +96,38 @@ async function load() {
   }
 }
 
-async function markRead(n) {
+function applyFilter(value) {
+  filterType.value = value;
+  router.replace({
+    query: {
+      ...route.query,
+      type: value || undefined
+    }
+  });
+  load();
+}
+
+async function markRead(n, options = { silent: false }) {
+  const { silent = false } = options;
   try {
     await markNotificationRead(n.id)
     n.is_read = true
-    toast.success('已标记为已读')
+    if (!silent) toast.success('已标记为已读')
   } catch (e) {
-    toast.error('标记失败')
+    if (!silent) toast.error('标记失败')
+    throw e
   }
+}
+
+async function openDetail(n) {
+  if (!n.is_read) {
+    await markRead(n, { silent: true })
+  }
+  const target = resolveNotificationTarget(n, auth.role.value)
+  router.push({
+    path: target.path,
+    query: target.query || {}
+  })
 }
 
 async function readAll() {
@@ -107,7 +142,24 @@ async function readAll() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  const type = typeof route.query.type === 'string' ? route.query.type : ''
+  if (types.some((item) => item.value === type)) {
+    filterType.value = type
+  }
+  load()
+})
+
+watch(
+  () => route.query.type,
+  (value) => {
+    const next = typeof value === 'string' ? value : ''
+    if (!types.some((item) => item.value === next)) return
+    if (filterType.value === next) return
+    filterType.value = next
+    load()
+  }
+)
 </script>
 
 <style scoped>

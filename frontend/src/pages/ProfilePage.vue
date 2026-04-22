@@ -32,16 +32,28 @@
             <strong>{{ verifications.length }}</strong>
             <span class="mono">核验请求</span>
           </div>
-          <div class="card summary-card">
-            <strong>{{ intention.accept_internship ? '是' : '否' }}</strong>
-            <span class="mono">接受实习</span>
+          <div class="card summary-card summary-card-switch">
+            <div class="summary-switch-head">
+              <span class="mono">接受实习</span>
+              <strong>{{ intention.accept_internship ? '开启' : '关闭' }}</strong>
+            </div>
+            <label class="switch">
+              <input
+                type="checkbox"
+                :checked="Boolean(intention.accept_internship)"
+                :disabled="internshipSwitchSaving"
+                @change="toggleInternshipAcceptance($event.target.checked)"
+              />
+              <span class="switch-slider"></span>
+            </label>
+            <span class="mono">{{ internshipSwitchSaving ? '同步中...' : '状态会同步给企业端' }}</span>
           </div>
         </div>
 
         <div class="module-tabs">
-          <button class="module-btn" :class="{ active: activeTab === 'profile' }" @click="activeTab = 'profile'">基础信息</button>
-          <button class="module-btn" :class="{ active: activeTab === 'intention' }" @click="activeTab = 'intention'">求职意向</button>
-          <button class="module-btn" :class="{ active: activeTab === 'resume' }" @click="activeTab = 'resume'">简历中心</button>
+          <button class="module-btn" :class="{ active: activeTab === 'profile' }" @click="switchTab('profile')">基础信息</button>
+          <button class="module-btn" :class="{ active: activeTab === 'intention' }" @click="switchTab('intention')">求职意向</button>
+          <button class="module-btn" :class="{ active: activeTab === 'resume' }" @click="switchTab('resume')">简历中心</button>
           <button class="module-btn" :class="{ active: activeTab === 'insight' }" @click="switchInsightTab">分析与核验</button>
         </div>
       </div>
@@ -262,10 +274,17 @@
             <div class="switch-row">
               <div>
                 <strong>接受实习机会</strong>
-                <p class="mono">开启后将同步匹配实习岗位</p>
+                <p class="mono">
+                  {{ internshipSwitchSaving ? '正在同步到企业端...' : '开启后将同步匹配实习岗位，并反馈给企业端' }}
+                </p>
               </div>
               <label class="switch">
-                <input type="checkbox" v-model="intention.accept_internship" />
+                <input
+                  type="checkbox"
+                  :checked="Boolean(intention.accept_internship)"
+                  :disabled="internshipSwitchSaving"
+                  @change="toggleInternshipAcceptance($event.target.checked)"
+                />
                 <span class="switch-slider"></span>
               </label>
             </div>
@@ -284,7 +303,7 @@
             <div class="section-head">
               <h3>简历列表</h3>
               <div class="actions">
-                <button class="btn btn-outline" @click="addResume">新增在线简历</button>
+                <button class="btn btn-outline" @click="openResumeDialog">新增在线简历</button>
                 <label class="upload-label">
                   上传 PDF 简历
                   <input type="file" accept=".pdf,.doc,.docx" @change="uploadResumePdf" />
@@ -294,32 +313,82 @@
 
             <div v-if="resumes.length === 0" class="empty-state card">暂无简历</div>
             <div v-else class="resume-list">
-              <div class="resume-item" v-for="resume in resumes" :key="resume.id">
-                <div class="resume-main">
-                  <strong>版本 {{ resume.version_no }}</strong>
-                  <p class="mono">{{ resume.resume_type }}{{ resume.file_url ? ' (附件)' : '' }}</p>
-                </div>
-                <div class="resume-actions">
-                  <span class="mono">{{ formatTime(resume.create_time) }}</span>
-                  <button class="btn btn-outline" @click="previewResume = previewResume === resume.id ? null : resume.id">
-                    {{ previewResume === resume.id ? '收起' : '预览' }}
-                  </button>
-                  <a v-if="resume.file_url" :href="resume.file_url" target="_blank" class="btn btn-outline">下载</a>
-                </div>
+	              <div class="resume-item" v-for="resume in resumes" :key="resume.id">
+	                <div class="resume-main">
+	                  <strong>版本 {{ resume.version_no }}</strong>
+	                  <p class="mono">{{ resumeModeText(resume) }}</p>
+	                </div>
+	                <div class="resume-actions">
+	                  <span class="mono">{{ formatTime(resume.create_time) }}</span>
+	                  <button class="btn btn-outline" @click="previewResume = previewResume === resume.id ? null : resume.id">
+	                    {{ previewResume === resume.id ? '收起' : '预览' }}
+	                  </button>
+	                  <a v-if="resume.file_url" :href="resume.file_url" target="_blank" class="btn btn-outline">下载</a>
+	                </div>
 
-                <div v-if="previewResume === resume.id && resume.content_json" class="resume-preview">
-                  <div v-if="resume.content_json.skills?.length" class="preview-section">
-                    <strong>技能：</strong>
-                    <div class="tags"><span class="tag" v-for="s in resume.content_json.skills" :key="s">{{ s }}</span></div>
-                  </div>
-                  <div v-if="resume.content_json.projects?.length" class="preview-section">
-                    <strong>项目：</strong>
-                    <div class="tags"><span class="tag" v-for="p in resume.content_json.projects" :key="p">{{ p }}</span></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+	                <div v-if="previewResume === resume.id" class="resume-preview detailed-preview">
+	                  <template v-if="hasStructuredResumeContent(resume)">
+	                    <div class="preview-grid">
+	                      <div class="preview-card" v-if="resume.content_json.summary">
+	                        <span class="mono preview-label">个人摘要</span>
+	                        <p>{{ resume.content_json.summary }}</p>
+	                      </div>
+	                      <div class="preview-card" v-if="resume.content_json.job_target || intention.expected_job">
+	                        <span class="mono preview-label">求职方向</span>
+	                        <p>{{ resume.content_json.job_target || intention.expected_job }}</p>
+	                      </div>
+	                      <div class="preview-card" v-if="resume.content_json.education">
+	                        <span class="mono preview-label">教育背景</span>
+	                        <p>{{ resume.content_json.education }}</p>
+	                      </div>
+	                      <div class="preview-card" v-if="resume.content_json.experience">
+	                        <span class="mono preview-label">实习/工作经历</span>
+	                        <p>{{ resume.content_json.experience }}</p>
+	                      </div>
+	                      <div class="preview-card" v-if="resume.content_json.achievements">
+	                        <span class="mono preview-label">成果亮点</span>
+	                        <p>{{ resume.content_json.achievements }}</p>
+	                      </div>
+	                    </div>
+
+	                    <div class="preview-section" v-if="resumeSkillTags(resume).length">
+	                      <strong>技能标签</strong>
+	                      <div class="tags">
+	                        <span class="tag" v-for="s in resumeSkillTags(resume)" :key="s">{{ s }}</span>
+	                      </div>
+	                    </div>
+
+	                    <div class="preview-section" v-if="resumeProjectItems(resume).length">
+	                      <strong>项目经历</strong>
+	                      <ul class="preview-list">
+	                        <li v-for="item in resumeProjectItems(resume)" :key="item">{{ item }}</li>
+	                      </ul>
+	                    </div>
+	                  </template>
+
+	                  <template v-else-if="resume.file_url">
+	                    <div class="preview-file-head">
+	                      <strong>附件简历预览</strong>
+	                      <span class="mono">格式：{{ resumeFileExt(resume).toUpperCase() || '未知' }}</span>
+	                    </div>
+	                    <iframe
+	                      v-if="canEmbedResumeFile(resume)"
+	                      :src="resume.file_url"
+	                      class="resume-file-frame"
+	                      title="附件简历预览"
+	                    ></iframe>
+	                    <div v-else class="mono">
+	                      当前文件暂不支持页面内预览，请点击“下载”查看原文件。
+	                    </div>
+	                  </template>
+
+	                  <template v-else>
+	                    <div class="mono">该简历暂无可预览内容。</div>
+	                  </template>
+	                </div>
+	              </div>
+	            </div>
+	          </div>
 
           <div class="card">
             <div class="section-head">
@@ -329,7 +398,7 @@
                 <input type="file" accept=".pdf,.docx,.doc,.txt" @change="handleParseResume" />
               </label>
             </div>
-            <p class="mono">上传 PDF/DOCX，AI 自动提取并可一键应用到档案。</p>
+            <p class="mono">上传 PDF/DOCX，AI 自动提取并可一键回填到个人信息，同时新增一份在线简历。</p>
             <div v-if="parseLoading" class="mono">解析中...</div>
             <div v-if="parseResult" class="resume-preview">
               <p><strong>姓名：</strong>{{ parseResult.name || '--' }}</p>
@@ -337,7 +406,15 @@
               <p><strong>专业：</strong>{{ parseResult.major || '--' }}</p>
               <p><strong>手机：</strong>{{ parseResult.phone || '--' }}</p>
               <p v-if="parseResult.skills?.length"><strong>技能：</strong>{{ parseResult.skills.join(', ') }}</p>
-              <button class="btn" @click="applyParseResult">应用到档案</button>
+              <div v-if="parsedExperienceLines.length" class="preview-section">
+                <strong>经历提取：</strong>
+                <ul class="preview-list">
+                  <li v-for="line in parsedExperienceLines" :key="line">{{ line }}</li>
+                </ul>
+              </div>
+              <button class="btn" :disabled="parseApplying" @click="applyParseResult">
+                {{ parseApplying ? '应用中...' : '应用并保存（含新简历）' }}
+              </button>
             </div>
           </div>
         </div>
@@ -381,27 +458,126 @@
           </div>
 
           <div class="card">
-            <h3>核验请求</h3>
+            <h3>企业核验请求</h3>
             <div v-if="!verifications.length" class="empty-state card">暂无核验请求</div>
             <div v-else class="verification-list">
-              <div v-for="v in verifications" :key="v.id" class="verification-item">
+              <div
+                v-for="v in verifications"
+                :key="v.id"
+                class="verification-item"
+                :class="{
+                  clickable: canRespondVerification(v),
+                  expanded: expandedVerificationId === v.id
+                }"
+                @click="toggleVerificationCard(v)"
+              >
                 <div class="verification-head">
-                  <span>企业ID: {{ v.company_id }}</span>
+                  <div class="verification-company">
+                    <span class="company-avatar">{{ companyAvatarText(v) }}</span>
+                    <div class="company-meta">
+                      <strong>{{ companyDisplayName(v) }}</strong>
+                      <span class="mono">企业ID: {{ v.company_id || '--' }}</span>
+                    </div>
+                  </div>
                   <span class="status-pill" :class="statusClass(v.status)">{{ statusText(v.status) }}</span>
                 </div>
-                <div class="mono">核验字段: {{ (v.fields || []).join(', ') || '--' }}</div>
-                <div v-if="v.result">结果: {{ v.result }}</div>
+                <div class="verification-fields">
+                  <span class="mono">企业正在核验：</span>
+                  <span>{{ formatVerificationFields(v.fields) || '未说明' }}</span>
+                </div>
+                <div v-if="canRespondVerification(v)" class="verification-tip mono">点击卡片可选择同意或拒绝</div>
+                <transition name="verification-actions">
+                  <div
+                    v-if="expandedVerificationId === v.id && canRespondVerification(v)"
+                    class="verification-actions"
+                    @click.stop
+                  >
+                    <button
+                      class="btn"
+                      :disabled="verificationActionLoadingId === v.id"
+                      @click="respondVerification(v, 'accept')"
+                    >
+                      {{ verificationActionLoadingId === v.id ? '提交中...' : '同意并提交校方核验' }}
+                    </button>
+                    <button
+                      class="btn btn-outline"
+                      :disabled="verificationActionLoadingId === v.id"
+                      @click="respondVerification(v, 'reject')"
+                    >
+                      拒绝本次核验
+                    </button>
+                  </div>
+                </transition>
+                <div v-if="v.result" class="verification-result">核验结果：{{ v.result }}</div>
               </div>
             </div>
           </div>
         </div>
       </div>
     </section>
+
+    <div v-if="resumeDialogVisible" class="resume-dialog-mask" @click.self="resumeDialogVisible = false">
+      <div class="card resume-dialog">
+        <div class="section-head">
+          <h3>新增在线简历</h3>
+          <button class="btn btn-outline" @click="resumeDialogVisible = false">关闭</button>
+        </div>
+	        <div class="field-grid">
+	          <div class="resume-identity field-full">
+	            <div class="identity-item">
+	              <span class="mono">姓名</span>
+	              <strong>{{ profile.name || '--' }}</strong>
+	            </div>
+	            <div class="identity-item">
+	              <span class="mono">学校/专业</span>
+	              <strong>{{ `${profile.school || '--'} / ${profile.major || '--'}` }}</strong>
+	            </div>
+	            <div class="identity-item">
+	              <span class="mono">联系方式</span>
+	              <strong>{{ profile.phone || profile.email || '--' }}</strong>
+	            </div>
+	          </div>
+	          <label class="field field-full">
+	            <span class="field-label">个人摘要</span>
+	            <textarea v-model="resumeDraft.summary" rows="3" placeholder="一句话概括你的求职优势"></textarea>
+	          </label>
+	          <label class="field">
+	            <span class="field-label">求职方向</span>
+	            <input v-model="resumeDraft.jobTarget" placeholder="如：前端开发 / AI算法 / 产品经理" />
+	          </label>
+	          <label class="field">
+	            <span class="field-label">成果亮点</span>
+	            <input v-model="resumeDraft.achievements" placeholder="如：主导项目上线，性能提升 40%" />
+	          </label>
+	          <label class="field field-full">
+	            <span class="field-label">教育背景</span>
+	            <textarea v-model="resumeDraft.education" rows="3" placeholder="学校、专业、核心课程、成绩亮点"></textarea>
+          </label>
+          <label class="field field-full">
+            <span class="field-label">实习/工作经历</span>
+            <textarea v-model="resumeDraft.experience" rows="4" placeholder="描述岗位职责、成果和量化指标"></textarea>
+          </label>
+          <label class="field field-full">
+            <span class="field-label">项目经历（每行一条）</span>
+            <textarea v-model="resumeDraft.projectsText" rows="4" placeholder="如：校园招聘系统（负责后端接口和推荐算法）"></textarea>
+          </label>
+          <label class="field field-full">
+            <span class="field-label">技能标签（逗号分隔）</span>
+            <input v-model="resumeDraft.skillsText" placeholder="如：Vue3, FastAPI, MySQL, Redis" />
+          </label>
+        </div>
+        <div class="actions">
+          <button class="btn" @click="createOnlineResumeFromDialog">创建在线简历</button>
+          <button class="btn btn-outline" @click="resumeDialogVisible = false">取消</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import {
   createResume,
   fetchResumes,
@@ -413,11 +589,16 @@ import {
   parseResume,
   fetchStudentAnalytics,
   fetchStudentVerifications,
+  respondStudentVerification,
+  fetchCompanies,
+  fetchCompany,
 } from "../services/api";
 import { useAuth } from "../store/auth";
 import toast from '../utils/toast';
 
 const auth = useAuth();
+const route = useRoute();
+const router = useRouter();
 const userId = auth.user.value?.id || 0;
 
 const profile = ref({
@@ -455,11 +636,26 @@ const awardDraft = ref('');
 const internshipItems = ref([createExperienceItem('internship')]);
 const projectItems = ref([createExperienceItem('project')]);
 const previewResume = ref(null);
+const resumeDialogVisible = ref(false);
+const resumeDraft = ref({
+  summary: "",
+  jobTarget: "",
+  achievements: "",
+  education: "",
+  experience: "",
+  projectsText: "",
+  skillsText: ""
+});
 const parseLoading = ref(false);
 const parseResult = ref(null);
+const parseApplying = ref(false);
+const internshipSwitchSaving = ref(false);
 const analytics = ref(null);
 const analyticsLoading = ref(false);
 const verifications = ref([]);
+const verificationCompanyNameMap = ref({});
+const expandedVerificationId = ref(null);
+const verificationActionLoadingId = ref(0);
 const activeTab = ref('profile');
 
 function createExperienceItem(type) {
@@ -542,8 +738,37 @@ function formatListInput(list) {
   return parseListInput(list).join('\n');
 }
 
+function normalizeParseExperienceLines(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+  return String(value || '')
+    .split(/\n+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function hasExperienceContent(list) {
+  return (list || []).some((item) =>
+    [item?.title, item?.organization, item?.period, item?.description]
+      .some((value) => String(value || '').trim().length > 0)
+  );
+}
+
+function createExperienceItemsFromParse(lines, type) {
+  return lines.map((line) => {
+    const briefTitle = line.split(/[，,。；;：:]/)[0]?.trim() || '';
+    return {
+      ...createExperienceItem(type),
+      title: briefTitle.slice(0, 40),
+      description: line
+    };
+  });
+}
+
 const skillItems = computed(() => parseListInput(skillsInput.value));
 const awardItems = computed(() => parseListInput(awardsInput.value));
+const parsedExperienceLines = computed(() => normalizeParseExperienceLines(parseResult.value?.experience));
 
 function addListItem(targetRef, draftRef) {
   const value = String(draftRef.value || '').trim();
@@ -654,25 +879,120 @@ async function saveAll() {
   }
 }
 
-async function addResume() {
+async function toggleInternshipAcceptance(nextValue) {
   if (!userId) return;
+  const previous = Boolean(intention.value.accept_internship);
+  const target = Boolean(nextValue);
+  if (previous === target) return;
+
+  intention.value.accept_internship = target;
+  internshipSwitchSaving.value = true;
   try {
-    const resumeSkills = parseListInput(skillsInput.value);
-    const resumeProjects = projectItems.value
-      .map((item) => String(item.title || item.description || '').trim())
-      .filter(Boolean);
+    await updateStudentIntention(userId, intention.value);
+    toast.success(target ? '已开启接受实习，企业端可见' : '已关闭接受实习，企业端可见');
+  } catch (err) {
+    intention.value.accept_internship = previous;
+    toast.error('更新失败，请稍后重试');
+  } finally {
+    internshipSwitchSaving.value = false;
+  }
+}
+
+function openResumeDialog() {
+  const defaultProjects = projectItems.value
+    .map((item) => String(item.title || item.description || '').trim())
+    .filter(Boolean)
+    .join('\n');
+  resumeDraft.value = {
+    summary: profile.value.bio || '',
+    jobTarget: intention.value.expected_job || '',
+    achievements: '',
+    education: `${profile.value.school || ''} ${profile.value.major || ''}`.trim(),
+    experience: internshipItems.value
+      .map((item) => String(item.description || '').trim())
+      .filter(Boolean)
+      .join('\n'),
+    projectsText: defaultProjects,
+    skillsText: parseListInput(skillsInput.value).join(', ')
+  };
+  resumeDialogVisible.value = true;
+}
+
+async function createOnlineResumeFromDialog() {
+  if (!userId) return;
+  const projects = parseListInput(resumeDraft.value.projectsText);
+  const skills = parseListInput(resumeDraft.value.skillsText);
+  const hasTextContent = [
+    resumeDraft.value.summary,
+    resumeDraft.value.jobTarget,
+    resumeDraft.value.achievements,
+    resumeDraft.value.education,
+    resumeDraft.value.experience
+  ].some((value) => String(value || '').trim().length > 0);
+  if (!skills.length && !projects.length && !hasTextContent) {
+    toast.warn('请至少填写一项简历内容');
+    return;
+  }
+  try {
     await createResume(userId, {
       student_id: userId,
       resume_type: "online",
-      content_json: { skills: resumeSkills, projects: resumeProjects },
+      content_json: {
+        summary: resumeDraft.value.summary.trim(),
+        job_target: resumeDraft.value.jobTarget.trim(),
+        achievements: resumeDraft.value.achievements.trim(),
+        education: resumeDraft.value.education.trim(),
+        experience: resumeDraft.value.experience.trim(),
+        skills,
+        projects
+      },
       file_url: "",
       version_no: 1,
     });
     toast.success('简历已创建');
+    resumeDialogVisible.value = false;
     await loadData();
   } catch (err) {
     toast.error('创建简历失败');
   }
+}
+
+function resumeModeText(resume) {
+  if (resume?.file_url) return `附件简历 (${resumeFileExt(resume).toUpperCase() || 'FILE'})`;
+  return '在线简历';
+}
+
+function resumeFileExt(resume) {
+  const fileUrl = String(resume?.file_url || '');
+  if (!fileUrl) return '';
+  const clean = fileUrl.split('?')[0];
+  const parts = clean.split('.');
+  if (parts.length < 2) return '';
+  return String(parts[parts.length - 1] || '').toLowerCase();
+}
+
+function canEmbedResumeFile(resume) {
+  return resumeFileExt(resume) === 'pdf';
+}
+
+function hasStructuredResumeContent(resume) {
+  const content = resume?.content_json;
+  if (!content || typeof content !== 'object') return false;
+  const keys = ['summary', 'job_target', 'achievements', 'education', 'experience'];
+  const hasText = keys.some((key) => String(content[key] || '').trim().length > 0);
+  return hasText || resumeSkillTags(resume).length > 0 || resumeProjectItems(resume).length > 0;
+}
+
+function resumeSkillTags(resume) {
+  const skills = resume?.content_json?.skills;
+  if (Array.isArray(skills)) return skills.filter(Boolean);
+  return parseListInput(skills || '');
+}
+
+function resumeProjectItems(resume) {
+  const projects = resume?.content_json?.projects;
+  if (Array.isArray(projects)) return projects.filter(Boolean);
+  return parseListInput(projects || '');
 }
 
 async function uploadResumePdf(event) {
@@ -703,24 +1023,106 @@ async function handleParseResume(event) {
     parseResult.value = await parseResume(file);
     toast.success('解析完成');
   } catch (e) {
-    toast.error('解析失败');
+    const reason = String(e?.message || '').trim();
+    toast.error(reason ? `解析失败：${reason}` : '解析失败');
   }
   parseLoading.value = false;
 }
 
-function applyParseResult() {
-  if (!parseResult.value) return;
+async function applyParseResult() {
+  if (!parseResult.value || !userId) return;
   const r = parseResult.value;
-  if (r.name) profile.value.name = r.name;
-  if (r.school) profile.value.school = r.school;
-  if (r.major) profile.value.major = r.major;
-  if (r.phone) profile.value.phone = r.phone;
-  if (r.email) profile.value.email = r.email;
-  if (r.skills?.length) {
-    profile.value.skills = r.skills;
-    skillsInput.value = formatListInput(r.skills);
+
+  if (r.name) profile.value.name = String(r.name).trim();
+  if (r.school) profile.value.school = String(r.school).trim();
+  if (r.major) profile.value.major = String(r.major).trim();
+  if (r.phone) profile.value.phone = String(r.phone).trim();
+  if (r.email) profile.value.email = String(r.email).trim();
+
+  const parsedSkills = parseListInput(r.skills || []);
+  if (parsedSkills.length) {
+    const mergedSkills = dedupeList([...parseListInput(skillsInput.value), ...parsedSkills]);
+    skillsInput.value = formatListInput(mergedSkills);
+    profile.value.skills = mergedSkills;
   }
-  toast.success('已应用到档案，请保存');
+
+  const parsedExperiences = normalizeParseExperienceLines(r.experience);
+  if (parsedExperiences.length) {
+    const parsedItems = createExperienceItemsFromParse(parsedExperiences, 'internship');
+    if (!hasExperienceContent(internshipItems.value)) {
+      internshipItems.value = ensureExperienceList(parsedItems, 'internship');
+    } else {
+      const existing = new Set(
+        internshipItems.value
+          .map((item) => String(item.description || '').trim().toLowerCase())
+          .filter(Boolean)
+      );
+      const appendItems = parsedItems.filter(
+        (item) => !existing.has(String(item.description || '').trim().toLowerCase())
+      );
+      internshipItems.value = ensureExperienceList(
+        [...internshipItems.value, ...appendItems],
+        'internship'
+      );
+    }
+  }
+
+  profile.value.internships = internshipItems.value.map(serializeExperienceItem).filter(Boolean);
+  profile.value.projects = projectItems.value.map(serializeExperienceItem).filter(Boolean);
+  profile.value.skills = parseListInput(skillsInput.value);
+  profile.value.awards = parseListInput(awardsInput.value);
+  const projects = projectItems.value
+    .map((item) => String(item.title || item.description || '').trim())
+    .filter(Boolean);
+  const experienceText = internshipItems.value
+    .map((item) => String(item.description || item.title || '').trim())
+    .filter(Boolean)
+    .join('\n');
+  const parsedRawSummary = String(r.raw_text || '')
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(' ');
+  const onlineResumePayload = {
+    summary: String(profile.value.bio || parsedRawSummary || '').trim(),
+    job_target: String(intention.value.expected_job || '').trim(),
+    achievements: '',
+    education: [profile.value.school, profile.value.major, profile.value.grade]
+      .map((part) => String(part || '').trim())
+      .filter(Boolean)
+      .join(' · '),
+    experience: experienceText,
+    skills: parseListInput(skillsInput.value),
+    projects
+  };
+
+  parseApplying.value = true;
+  let resumeCreateFailed = false;
+  try {
+    await updateStudentProfile(userId, profile.value);
+    try {
+      await createResume(userId, {
+        student_id: userId,
+        resume_type: 'online',
+        content_json: onlineResumePayload,
+        file_url: '',
+        version_no: 1,
+      });
+    } catch (_) {
+      resumeCreateFailed = true;
+    }
+    await loadData();
+    switchTab('profile');
+    toast.success(resumeCreateFailed ? '个人信息已更新' : '解析结果已保存，并新增一份在线简历');
+    if (resumeCreateFailed) {
+      toast.warn('在线简历创建失败，请稍后重试');
+    }
+  } catch (e) {
+    toast.warn('已应用到页面，但保存失败，请点击“保存资料”重试');
+  } finally {
+    parseApplying.value = false;
+  }
 }
 
 async function loadAnalytics() {
@@ -735,27 +1137,160 @@ async function loadAnalytics() {
 
 async function loadVerifications() {
   try {
-    verifications.value = await fetchStudentVerifications(userId);
+    const list = await fetchStudentVerifications(userId);
+    verifications.value = list || [];
+    if (expandedVerificationId.value && !verifications.value.some((item) => item.id === expandedVerificationId.value)) {
+      expandedVerificationId.value = null;
+    }
+    await loadVerificationCompanyNames(verifications.value);
   } catch (e) {
-    // ignore
+    verifications.value = [];
+    verificationCompanyNameMap.value = {};
+    expandedVerificationId.value = null;
   }
 }
 
 function switchInsightTab() {
-  activeTab.value = 'insight';
+  switchTab('insight');
   if (!analytics.value) loadAnalytics();
 }
 
+function switchTab(tab, options = { syncRoute: true }) {
+  const validTabs = ['profile', 'intention', 'resume', 'insight'];
+  if (!validTabs.includes(tab)) return;
+  activeTab.value = tab;
+  if (options.syncRoute && route.query.tab !== tab) {
+    router.replace({ query: { ...route.query, tab } });
+  }
+}
+
 function statusClass(status) {
+  if (status === 'pending' || status === 'pending_student' || status === 'pending_admin') return 'pending';
   if (status === 'approved') return 'ok';
-  if (status === 'rejected') return 'bad';
+  if (status === 'rejected' || status === 'student_rejected') return 'bad';
   return 'pending';
 }
 
 function statusText(status) {
+  if (status === 'pending' || status === 'pending_student') return '待你确认';
+  if (status === 'pending_admin') return '待校方审核';
+  if (status === 'student_rejected') return '你已拒绝';
   if (status === 'approved') return '已通过';
   if (status === 'rejected') return '已驳回';
   return '待处理';
+}
+
+function canRespondVerification(item) {
+  return ['pending', 'pending_student'].includes(String(item?.status || ''));
+}
+
+function toggleVerificationCard(item) {
+  if (!canRespondVerification(item)) return;
+  expandedVerificationId.value = expandedVerificationId.value === item.id ? null : item.id;
+}
+
+async function respondVerification(item, action) {
+  if (!item?.id || !canRespondVerification(item)) return;
+  verificationActionLoadingId.value = item.id;
+  try {
+    await respondStudentVerification(userId, item.id, { action });
+    toast.success(action === 'accept' ? '已同意核验，等待校方审核' : '已拒绝本次核验');
+    expandedVerificationId.value = null;
+    await loadVerifications();
+  } catch (e) {
+    toast.error(action === 'accept' ? '同意失败，请稍后重试' : '拒绝失败，请稍后重试');
+  } finally {
+    verificationActionLoadingId.value = 0;
+  }
+}
+
+async function loadVerificationCompanyNames(list) {
+  const ids = [...new Set((list || []).map((item) => Number(item.company_id || 0)).filter(Boolean))];
+  if (!ids.length) {
+    verificationCompanyNameMap.value = {};
+    return;
+  }
+
+  try {
+    const companies = await fetchCompanies();
+    const map = {};
+    for (const company of companies || []) {
+      const candidateId = Number(company.user_id || company.id || 0);
+      if (candidateId && ids.includes(candidateId) && company.company_name) {
+        map[candidateId] = company.company_name;
+      }
+    }
+    const missing = ids.filter((id) => !map[id]);
+    if (missing.length) {
+      const fallback = await Promise.all(
+        missing.map(async (id) => {
+          try {
+            const company = await fetchCompany(id);
+            return [id, company?.company_name || ''];
+          } catch (_) {
+            return [id, ''];
+          }
+        })
+      );
+      for (const [id, name] of fallback) {
+        if (name) map[id] = name;
+      }
+    }
+    verificationCompanyNameMap.value = map;
+  } catch (_) {
+    const fallback = await Promise.all(
+      ids.map(async (id) => {
+        try {
+          const company = await fetchCompany(id);
+          return [id, company?.company_name || ''];
+        } catch (_) {
+          return [id, ''];
+        }
+      })
+    );
+    const map = {};
+    for (const [id, name] of fallback) {
+      if (name) map[id] = name;
+    }
+    verificationCompanyNameMap.value = map;
+  }
+}
+
+function companyDisplayName(item) {
+  const rawName = String(item?.company_name || '').trim();
+  if (rawName) return rawName;
+  const id = Number(item?.company_id || 0);
+  if (id && verificationCompanyNameMap.value[id]) return verificationCompanyNameMap.value[id];
+  return id ? `企业 #${id}` : '企业';
+}
+
+function companyAvatarText(item) {
+  const name = companyDisplayName(item);
+  const display = String(name || '').trim();
+  if (!display) return '企';
+  const first = display.replace(/^企业\s*#?\d+\s*/g, '').trim().charAt(0);
+  return first || '企';
+}
+
+const verificationFieldLabels = {
+  name: '姓名',
+  student_no: '学号',
+  school: '学校',
+  major: '专业',
+  grade: '年级',
+  phone: '手机号',
+  email: '邮箱',
+  education: '学历',
+  skills: '技能标签',
+  awards: '获奖经历',
+  internships: '实习经历',
+  projects: '项目经历'
+};
+
+function formatVerificationFields(fields) {
+  const list = Array.isArray(fields) ? fields : [];
+  if (!list.length) return '';
+  return list.map((field) => verificationFieldLabels[field] || String(field || '')).filter(Boolean).join('、');
 }
 
 function formatTime(value) {
@@ -764,9 +1299,22 @@ function formatTime(value) {
 }
 
 onMounted(() => {
+  const tab = typeof route.query.tab === 'string' ? route.query.tab : '';
+  if (tab) {
+    switchTab(tab, { syncRoute: false });
+  }
   loadData();
   loadVerifications();
 });
+
+watch(
+  () => route.query.tab,
+  (tab) => {
+    if (typeof tab !== 'string' || !tab) return;
+    if (tab === activeTab.value) return;
+    switchTab(tab, { syncRoute: false });
+  }
+);
 </script>
 
 <style scoped>
@@ -818,6 +1366,23 @@ onMounted(() => {
 .summary-card strong {
   font-size: 28px;
   color: #0b7d45;
+}
+
+.summary-card-switch {
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.summary-switch-head {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.summary-card-switch strong {
+  font-size: 20px;
 }
 
 .module-tabs {
@@ -1142,6 +1707,11 @@ onMounted(() => {
   transform: translateX(20px);
 }
 
+.switch input:disabled + .switch-slider {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .intention-tip {
   border: 1px solid #d8eee1;
 }
@@ -1207,13 +1777,103 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  background: #f9fcfa;
+}
+
+.resume-preview p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.detailed-preview {
+  gap: 12px;
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.preview-card {
+  border: 1px solid #dceee4;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.preview-label {
+  color: #7b8f87;
+  font-size: 12px;
 }
 
 .preview-section {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
+}
+
+.preview-list {
+  margin: 0;
+  padding-left: 18px;
+  color: #2f4d41;
+  line-height: 1.5;
+}
+
+.preview-file-head {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.resume-file-frame {
+  width: 100%;
+  min-height: 520px;
+  border: 1px solid #dbece2;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.resume-identity {
+  border: 1px solid #dceee4;
+  border-radius: 12px;
+  background: #f7fbf9;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.identity-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.identity-item strong {
+  font-size: 14px;
+  color: #264338;
+}
+
+.resume-dialog-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 24, 20, 0.42);
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+}
+
+.resume-dialog {
+  width: min(760px, 100%);
+  max-height: min(82vh, 860px);
+  overflow: auto;
 }
 
 .skill-bar-row {
@@ -1247,24 +1907,127 @@ onMounted(() => {
 .verification-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  margin-top: 10px;
 }
 
 .verification-item {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 12px;
+  border: 1px solid #d9ece2;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fcfa 100%);
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
+  box-shadow: 0 8px 18px rgba(14, 96, 58, 0.06);
+}
+
+.verification-item.clickable {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.verification-item.clickable:hover {
+  transform: translateY(-1px);
+  border-color: #c5e4d6;
+  box-shadow: 0 12px 22px rgba(14, 96, 58, 0.1);
+}
+
+.verification-item.expanded {
+  border-color: #b7dec9;
 }
 
 .verification-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.verification-company {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.company-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #3cab69 0%, #2e9156 100%);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.company-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.company-meta strong {
+  color: #1d3a2f;
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.verification-fields {
+  border: 1px solid #deeee5;
+  background: #f6fbf8;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #35554a;
+}
+
+.verification-fields .mono {
+  color: #6f8780;
+}
+
+.verification-tip {
+  font-size: 12px;
+  color: #7f938b;
+}
+
+.verification-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  overflow: hidden;
+}
+
+.verification-actions-enter-active,
+.verification-actions-leave-active {
+  transition: all 0.22s ease;
+}
+
+.verification-actions-enter-from,
+.verification-actions-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+  max-height: 0;
+}
+
+.verification-actions-enter-to,
+.verification-actions-leave-from {
+  opacity: 1;
+  transform: translateY(0);
+  max-height: 120px;
+}
+
+.verification-result {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #2b4a3f;
 }
 
 .status-pill {
@@ -1272,7 +2035,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 5px 12px;
   font-size: 12px;
   font-weight: 600;
 }
@@ -1293,6 +2056,26 @@ onMounted(() => {
 }
 
 @media (max-width: 760px) {
+  .resume-file-frame {
+    min-height: 420px;
+  }
+
+  .verification-head {
+    align-items: stretch;
+  }
+
+  .status-pill {
+    align-self: flex-start;
+  }
+
+  .company-meta strong {
+    font-size: 14px;
+  }
+
+  .verification-actions .btn {
+    width: 100%;
+  }
+
   .list-tools {
     width: 100%;
     justify-content: space-between;

@@ -52,6 +52,12 @@
               <div><span class="mono">学校</span><strong>{{ detail.school }}</strong></div>
               <div><span class="mono">专业</span><strong>{{ detail.major }}</strong></div>
               <div><span class="mono">年级</span><strong>{{ detail.grade }}</strong></div>
+              <div>
+                <span class="mono">实习意向</span>
+                <strong :class="internshipIntentClass(detail.accept_internship)">
+                  {{ internshipIntentText(detail.accept_internship) }}
+                </strong>
+              </div>
             </div>
             <div class="meta-actions">
               <router-link class="btn btn-outline" :to="`/jobs/${detail.job_id}`">查看岗位详情</router-link>
@@ -280,6 +286,14 @@ function formatTime(value) {
   return String(value).replace('T', ' ').slice(0, 16);
 }
 
+function internshipIntentText(value) {
+  return value === false ? '暂不接受实习' : '接受实习';
+}
+
+function internshipIntentClass(value) {
+  return value === false ? 'intent-off' : 'intent-on';
+}
+
 function hasMeaningfulValue(value) {
   if (value === null || value === undefined) return false;
   if (typeof value === 'string') return value.trim().length > 0;
@@ -462,6 +476,14 @@ onMounted(loadDetail);
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.intent-on {
+  color: #0f8f59;
+}
+
+.intent-off {
+  color: #8a6400;
 }
 
 .meta-actions {

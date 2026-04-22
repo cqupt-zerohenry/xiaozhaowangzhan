@@ -6,6 +6,8 @@ import DashboardPage from "./pages/DashboardPage.vue";
 import JobsPage from "./pages/JobsPage.vue";
 import CompaniesPage from "./pages/CompaniesPage.vue";
 import AiPage from "./pages/AiPage.vue";
+import RagPage from "./pages/RagPage.vue";
+import RagKnowledgeBasePage from "./pages/RagKnowledgeBasePage.vue";
 import MessagesPage from "./pages/MessagesPage.vue";
 import ProfilePage from "./pages/ProfilePage.vue";
 import CompanyCenterPage from "./pages/CompanyCenterPage.vue";
@@ -17,6 +19,7 @@ import NotificationsPage from "./pages/NotificationsPage.vue";
 import InterviewFlowPage from "./pages/InterviewFlowPage.vue";
 import ViewHistoryPage from "./pages/ViewHistoryPage.vue";
 import MyApplicationsPage from "./pages/MyApplicationsPage.vue";
+import CollegeInsightsPage from "./pages/CollegeInsightsPage.vue";
 import { useAuth } from "./store/auth";
 
 const router = createRouter({
@@ -29,15 +32,18 @@ const router = createRouter({
     { path: "/jobs/:id", name: "job-detail", component: JobDetailPage, meta: { public: true } },
     { path: "/companies", name: "companies", component: CompaniesPage, meta: { roles: ["admin"] } },
     { path: "/admin-center", name: "admin-center", component: AdminCenterPage, meta: { roles: ["admin"] } },
+    { path: "/college-insights", name: "college-insights", component: CollegeInsightsPage, meta: { roles: ["admin"] } },
     { path: "/company-center", name: "company-center", component: CompanyCenterPage, meta: { roles: ["company"] } },
     { path: "/company-center/candidates/:applicationId", name: "company-candidate-detail", component: CompanyCandidateDetailPage, meta: { roles: ["company"] } },
     { path: "/ai", name: "ai", component: AiPage, meta: { roles: ["student", "company", "admin"] } },
+    { path: "/rag", name: "rag", component: RagPage, meta: { roles: ["student", "company", "admin"] } },
+    { path: "/rag/kb/:kbId", name: "rag-kb-detail", component: RagKnowledgeBasePage, meta: { roles: ["student", "company", "admin"] } },
     { path: "/messages", name: "messages", component: MessagesPage, meta: { roles: ["student", "company", "admin"] } },
     { path: "/my-applications", name: "my-applications", component: MyApplicationsPage, meta: { roles: ["student"] } },
     { path: "/profile", name: "profile", component: ProfilePage, meta: { roles: ["student"] } },
     { path: "/favorites", name: "favorites", component: FavoritesPage, meta: { roles: ["student"] } },
     { path: "/notifications", name: "notifications", component: NotificationsPage, meta: { roles: ["student", "company", "admin"] } },
-    { path: "/interview-flow", name: "interview-flow", component: InterviewFlowPage, meta: { roles: ["student", "company"] } },
+    { path: "/interview-flow", name: "interview-flow", component: InterviewFlowPage, meta: { roles: ["student"] } },
     { path: "/view-history", name: "view-history", component: ViewHistoryPage, meta: { roles: ["student"] } }
   ],
   scrollBehavior() {

@@ -12,6 +12,10 @@
             :key="`${item.id}-${idx}`"
             class="announce-item"
             :title="`${item.title}：${item.content}`"
+            role="button"
+            tabindex="0"
+            @click="openAnnouncement(item)"
+            @keydown.enter.prevent="openAnnouncement(item)"
           >
             {{ item.title }}：{{ summary(item.content) }}
           </span>
@@ -19,6 +23,16 @@
       </div>
     </div>
   </section>
+  <div v-if="dialogVisible" class="announce-dialog-mask" @click.self="closeDialog">
+    <div class="announce-dialog card">
+      <div class="announce-dialog-head">
+        <h3>{{ activeAnnouncement?.title || '校园公告' }}</h3>
+        <button class="btn btn-outline" @click="closeDialog">关闭</button>
+      </div>
+      <p class="mono" v-if="activeAnnouncement?.create_time">发布时间：{{ formatTime(activeAnnouncement.create_time) }}</p>
+      <p class="announce-dialog-content">{{ activeAnnouncement?.content || '暂无内容' }}</p>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -26,6 +40,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { fetchPublishedAnnouncements } from '../services/api';
 
 const announcements = ref([]);
+const dialogVisible = ref(false);
+const activeAnnouncement = ref(null);
 let refreshTimer = null;
 
 const visibleAnnouncements = computed(() => announcements.value.slice(0, 8));
@@ -36,6 +52,20 @@ function summary(value) {
   if (!text) return '暂无内容';
   if (text.length <= 32) return text;
   return `${text.slice(0, 32)}...`;
+}
+
+function formatTime(value) {
+  if (!value) return '';
+  return String(value).replace('T', ' ').slice(0, 16);
+}
+
+function openAnnouncement(item) {
+  activeAnnouncement.value = item;
+  dialogVisible.value = true;
+}
+
+function closeDialog() {
+  dialogVisible.value = false;
 }
 
 async function loadAnnouncements() {
@@ -108,6 +138,40 @@ onBeforeUnmount(() => {
 .announce-item {
   color: #355647;
   font-size: 13px;
+  cursor: pointer;
+}
+
+.announce-item:hover {
+  color: var(--accent-dark);
+}
+
+.announce-dialog-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 20, 18, 0.42);
+  display: grid;
+  place-items: center;
+  z-index: 80;
+  padding: 18px;
+}
+
+.announce-dialog {
+  width: min(680px, 100%);
+  max-height: min(76vh, 720px);
+  overflow: auto;
+}
+
+.announce-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.announce-dialog-content {
+  white-space: pre-wrap;
+  line-height: 1.65;
+  margin: 0;
 }
 
 @keyframes ticker-scroll {

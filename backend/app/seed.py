@@ -1,28 +1,144 @@
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.models import (
     Announcement,
     Application,
     CompanyProfile,
     Job,
+    KnowledgeBase,
+    KnowledgeChunk,
+    KnowledgeDocument,
     Message,
     Resume,
     StudentIntention,
     StudentProfile,
     User,
 )
+from app.rag_service import chunk_and_embed
 from app.security import hash_password
 
 DEMO_PASSWORD = '123456'
+
+
+def ensure_mock_messages_if_needed(db: Session) -> None:
+    """为演示账号补充消息会话数据（幂等近似：达到阈值后不再追加）。"""
+    student = db.scalar(select(User).where(User.email == 'student@test.com'))
+    company1 = db.scalar(select(User).where(User.email == 'company@test.com'))
+    company2 = db.scalar(select(User).where(User.email == 'company2@test.com'))
+    admin = db.scalar(select(User).where(User.email == 'admin@test.com'))
+
+    if not student or not company1 or not company2 or not admin:
+        return
+
+    existing_count = db.scalar(
+        select(func.count()).select_from(Message).where(
+            or_(
+                and_(Message.sender_id == student.id, Message.receiver_id.in_([company1.id, company2.id, admin.id])),
+                and_(Message.receiver_id == student.id, Message.sender_id.in_([company1.id, company2.id, admin.id])),
+            )
+        )
+    ) or 0
+
+    # 已有足够消息时不重复追加
+    if existing_count >= 10:
+        return
+
+    mock_messages = [
+        Message(sender_id=company1.id, receiver_id=student.id,
+                content='李华同学你好，看到你投递了 SRE 实习岗位，方便这周三下午进行线上面试吗？',
+                message_type='text', is_read=True),
+        Message(sender_id=student.id, receiver_id=company1.id,
+                content='您好，可以的，请问是腾讯会议还是飞书？',
+                message_type='text', is_read=True),
+        Message(sender_id=company1.id, receiver_id=student.id,
+                content='我们用腾讯会议，稍后会把会议号发给你。',
+                message_type='text', is_read=False),
+        Message(sender_id=company2.id, receiver_id=student.id,
+                content='你在 AI 算法方向的项目经历很匹配，欢迎补充一份项目说明文档。',
+                message_type='text', is_read=False),
+        Message(sender_id=student.id, receiver_id=company2.id,
+                content='好的，我今天晚上整理后补充上传。',
+                message_type='text', is_read=True),
+        Message(sender_id=company2.id, receiver_id=student.id,
+                content='王五同学，恭喜你通过了 AI 算法实习面试，请确认入职时间。',
+                message_type='system', is_read=False),
+        Message(sender_id=admin.id, receiver_id=student.id,
+                content='系统通知：你的学生身份核验已通过，可解锁更多企业岗位。',
+                message_type='system', is_read=False),
+        Message(sender_id=student.id, receiver_id=admin.id,
+                content='收到，感谢老师。',
+                message_type='text', is_read=True),
+    ]
+    db.add_all(mock_messages)
+    db.commit()
+
+
+def ensure_mock_knowledge_base_if_needed(db: Session) -> None:
+    """为企业演示账号补充一个可直接使用的知识库（幂等）。"""
+    company = db.scalar(select(User).where(User.email == 'company@test.com'))
+    if not company:
+        return
+
+    existing_kb = db.scalar(
+        select(KnowledgeBase).where(KnowledgeBase.owner_id == company.id)
+    )
+    if existing_kb:
+        return
+
+    kb = KnowledgeBase(
+        owner_id=company.id,
+        owner_role='company',
+        name='校招初筛知识库（示例）',
+        description='用于 AI 简历筛选演示，包含后端实习候选人的核心评估要点。',
+    )
+    db.add(kb)
+    db.flush()
+
+    content = (
+        '岗位：后端开发实习生\n'
+        '评估要点：\n'
+        '1. 基础能力：数据结构、算法复杂度、SQL 基础。\n'
+        '2. 工程能力：接口设计、异常处理、日志与监控意识。\n'
+        '3. 项目贡献：说明负责模块、技术选型、性能优化结果。\n'
+        '4. 协作能力：跨团队沟通、问题定位与复盘能力。\n'
+        '5. 学习能力：是否有主动学习新技术并落地的案例。'
+    )
+    doc = KnowledgeDocument(
+        kb_id=kb.id,
+        title='后端实习初筛评估要点',
+        source_type='paste',
+        raw_content=content,
+        chunk_count=0,
+        status='processing',
+    )
+    db.add(doc)
+    db.flush()
+
+    pairs = chunk_and_embed(content, settings.rag_chunk_size, settings.rag_chunk_overlap)
+    for idx, (chunk_content, embedding) in enumerate(pairs):
+        db.add(KnowledgeChunk(
+            document_id=doc.id,
+            kb_id=kb.id,
+            chunk_index=idx,
+            content=chunk_content,
+            embedding=embedding,
+            token_count=len(chunk_content),
+        ))
+    doc.chunk_count = len(pairs)
+    doc.status = 'ready'
+    db.commit()
 
 
 def seed_data(db: Session) -> None:
     """数据库为空时创建展示账号和基础数据，用于功能演示。"""
     user_count = db.scalar(select(func.count()).select_from(User))
     if user_count and user_count > 0:
+        ensure_mock_messages_if_needed(db)
+        ensure_mock_knowledge_base_if_needed(db)
         return
 
     # ── 管理员 ──
@@ -192,3 +308,5 @@ def seed_data(db: Session) -> None:
     ))
 
     db.commit()
+    ensure_mock_messages_if_needed(db)
+    ensure_mock_knowledge_base_if_needed(db)
