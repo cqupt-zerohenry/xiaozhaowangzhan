@@ -218,6 +218,38 @@ xiaozhaowangzhan-main/
 
 ### 6.1 一键启动
 
+根目录一键开发启动：
+
+```bash
+pnpm dev
+```
+
+该方式会自动：
+
+- 用 Docker Compose 启动 MySQL 和 Redis
+- 在本机启动 FastAPI 后端
+- 在本机启动 Vite 前端
+
+### 6.2 完整 Docker Compose 启动
+
+如果希望直接启动前端容器、后端容器、MySQL 和 Redis 四个服务，可使用根目录的 `docker-compose.yml`：
+
+```bash
+docker compose up -d --build
+```
+
+启动完成后可直接访问：
+
+- 前端：`http://localhost:5173`
+- 后端：`http://localhost:8000`
+- API 文档：`http://localhost:8000/docs`
+
+说明：
+
+- 后端容器会读取 `backend/.env` 中的 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`
+- `docker-compose.yml` 会自动把数据库连接改为容器内的 `mysql`，把 Redis 连接改为容器内的 `redis`
+- 前端容器通过 Nginx 代理 `/api`、`/ws`、`/uploads` 到后端容器，因此浏览器侧不需要再单独配置 `VITE_API_BASE`
+
 在项目根目录执行：
 
 ```bash
@@ -511,4 +543,3 @@ cd backend && pytest
 # 构建前端
 cd frontend && pnpm build
 ```
-
