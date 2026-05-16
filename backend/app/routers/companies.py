@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import extract, func, select
 from sqlalchemy.orm import Session
 
@@ -32,6 +32,106 @@ def ensure_company_owner_or_admin(current_user: User, user_id: int) -> None:
     if current_user.role == 'company' and current_user.id == user_id:
         return
     raise HTTPException(status_code=403, detail='Permission denied')
+
+
+def _normalize_text_list(values: list[str] | None) -> dict[str, str]:
+    normalized: dict[str, str] = {}
+    for value in values or []:
+        text = str(value or '').strip()
+        if text:
+            normalized[text.lower()] = text
+    return normalized
+
+
+def _build_recommendation_reason(
+    matched_skills: list[str],
+    missing_skills: list[str],
+    city_matched: bool,
+    industry_matched: bool,
+    accept_internship: bool,
+) -> str:
+    parts: list[str] = []
+    if matched_skills:
+        parts.append(f"技能命中 {', '.join(matched_skills[:3])}")
+    else:
+        parts.append('当前技能与岗位标签重合较少')
+    if city_matched:
+        parts.append('求职城市匹配')
+    if industry_matched:
+        parts.append('行业意向匹配')
+    if accept_internship:
+        parts.append('接受实习安排')
+    if missing_skills:
+        parts.append(f"待补技能 {', '.join(missing_skills[:2])}")
+    return '；'.join(parts)
+
+
+def _score_student_for_job(
+    student: StudentProfile,
+    intention: StudentIntention | None,
+    company: CompanyProfile,
+    job: Job,
+) -> tuple[int, list[str], list[str], str]:
+    student_skills_map = _normalize_text_list(student.skills)
+    job_skills_map = _normalize_text_list(job.skill_tags)
+
+    matched_skills = [
+        original for key, original in job_skills_map.items()
+        if key in student_skills_map
+    ]
+    missing_skills = [
+        original for key, original in job_skills_map.items()
+        if key not in student_skills_map
+    ]
+
+    skill_ratio = len(matched_skills) / max(len(job_skills_map), 1)
+    skill_score = round(skill_ratio * 70)
+
+    city_matched = bool(
+        intention
+        and intention.expected_city
+        and job.city
+        and intention.expected_city.strip().lower() == job.city.strip().lower()
+    )
+    industry_matched = bool(
+        intention
+        and intention.expected_industry
+        and company.industry
+        and intention.expected_industry.strip().lower() == company.industry.strip().lower()
+    )
+    internship_ok = bool(intention.accept_internship) if intention else True
+
+    expected_job_text = (
+        intention.expected_job.strip().lower()
+        if intention and intention.expected_job
+        else ''
+    )
+    expected_job_matched = bool(
+        expected_job_text
+        and (
+            expected_job_text in (job.job_name or '').lower()
+            or expected_job_text in (job.job_type or '').lower()
+        )
+    )
+
+    score = skill_score
+    if city_matched:
+        score += 12
+    if industry_matched:
+        score += 8
+    if internship_ok:
+        score += 5
+    if expected_job_matched:
+        score += 5
+
+    reason = _build_recommendation_reason(
+        matched_skills=matched_skills,
+        missing_skills=missing_skills,
+        city_matched=city_matched,
+        industry_matched=industry_matched,
+        accept_internship=internship_ok,
+    )
+    return min(score, 100), matched_skills, missing_skills, reason
 
 
 @router.post('', response_model=schemas.CompanyProfile)
@@ -134,23 +234,50 @@ def update_status(
 @router.get('/{user_id}/recommendations', response_model=schemas.TalentRecommendResponse)
 def recommend_talents(
     user_id: int,
+    job_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> schemas.TalentRecommendResponse:
     ensure_company_owner_or_admin(current_user, user_id)
 
-    company_jobs = db.scalars(select(Job).where(Job.company_id == user_id, Job.status == 'active')).all()
-    required_skills: set[str] = set()
-    for job in company_jobs:
-        required_skills.update(job.skill_tags or [])
+    company = db.get(CompanyProfile, user_id)
+    if not company:
+        raise HTTPException(status_code=404, detail='Company not found')
+
+    company_jobs = db.scalars(
+        select(Job).where(Job.company_id == user_id, Job.status == 'active').order_by(Job.id.desc())
+    ).all()
+    if not company_jobs:
+        return schemas.TalentRecommendResponse(results=[])
+
+    if job_id is not None:
+        target_job = next((item for item in company_jobs if item.id == job_id), None)
+        if not target_job:
+            raise HTTPException(status_code=404, detail='Job not found for this company')
+        target_jobs = [target_job]
+    else:
+        target_jobs = company_jobs
 
     students = db.scalars(select(StudentProfile)).all()
     results: list[schemas.TalentRecommendResult] = []
     for student in students:
-        skills = set(student.skills or [])
-        matched = required_skills.intersection(skills)
-        score = int((len(matched) / max(len(required_skills), 1)) * 100)
         intention = db.get(StudentIntention, student.user_id)
+        best_match: tuple[Job, int, list[str], list[str], str] | None = None
+
+        for job in target_jobs:
+            score, matched_skills, missing_skills, reason = _score_student_for_job(
+                student=student,
+                intention=intention,
+                company=company,
+                job=job,
+            )
+            if best_match is None or score > best_match[1]:
+                best_match = (job, score, matched_skills, missing_skills, reason)
+
+        if best_match is None:
+            continue
+
+        best_job, score, matched_skills, missing_skills, reason = best_match
         results.append(
             schemas.TalentRecommendResult(
                 student_id=student.user_id,
@@ -158,13 +285,18 @@ def recommend_talents(
                 major=student.major,
                 grade=student.grade,
                 accept_internship=bool(intention.accept_internship) if intention else True,
-                skills=list(skills),
+                skills=student.skills or [],
+                target_job_id=best_job.id,
+                target_job_name=best_job.job_name,
+                city=best_job.city,
+                matched_skills=matched_skills,
+                missing_skills=missing_skills,
                 match_score=score,
-                reason='Based on overlap between job skills and student skills.',
+                reason=reason,
             )
         )
 
-    results.sort(key=lambda item: item.match_score, reverse=True)
+    results.sort(key=lambda item: (item.match_score, item.student_id), reverse=True)
     return schemas.TalentRecommendResponse(results=results)
 
 

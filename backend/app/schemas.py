@@ -242,12 +242,62 @@ class TalentRecommendResult(BaseModel):
     grade: str
     accept_internship: bool = True
     skills: list[str]
+    target_job_id: int | None = None
+    target_job_name: str = ''
+    city: str = ''
+    matched_skills: list[str] = []
+    missing_skills: list[str] = []
     match_score: int
     reason: str
 
 
 class TalentRecommendResponse(BaseModel):
     results: list[TalentRecommendResult]
+
+
+class CollegeInsightApplicantItem(BaseModel):
+    name: str
+    grade: str
+    status: str
+
+
+class CollegeInsightCompanyItem(BaseModel):
+    id: int
+    name: str
+    license: str = ''
+    scale: str = ''
+    contact: str = ''
+    phone: str = ''
+    jobs: list[str] = []
+
+
+class CollegeInsightJobItem(BaseModel):
+    id: int
+    name: str
+    company: str = ''
+    city: str = ''
+    salary: str = ''
+    major: str = ''
+    applicationCount: int = 0
+    applicants: list[CollegeInsightApplicantItem] = []
+
+
+class CollegeInsightApplicationItem(BaseModel):
+    id: int
+    studentName: str
+    grade: str
+    jobName: str
+    companyName: str
+    status: str
+
+
+class CollegeInsightItem(BaseModel):
+    id: str
+    name: str
+    grades: list[str] = []
+    companies: list[CollegeInsightCompanyItem] = []
+    jobs: list[CollegeInsightJobItem] = []
+    applications: list[CollegeInsightApplicationItem] = []
 
 
 class StatsResponse(BaseModel):

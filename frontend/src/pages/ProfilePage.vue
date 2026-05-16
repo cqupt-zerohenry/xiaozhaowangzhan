@@ -310,6 +310,7 @@
                 </label>
               </div>
             </div>
+            <p class="mono">在线简历支持新增、编辑和删除；已用于投递的简历会保留，避免影响既有投递记录。</p>
 
             <div v-if="resumes.length === 0" class="empty-state card">暂无简历</div>
             <div v-else class="resume-list">
@@ -323,7 +324,21 @@
 	                  <button class="btn btn-outline" @click="previewResume = previewResume === resume.id ? null : resume.id">
 	                    {{ previewResume === resume.id ? '收起' : '预览' }}
 	                  </button>
+                    <button
+                      v-if="resume.resume_type === 'online'"
+                      class="btn btn-outline"
+                      @click="editResume(resume)"
+                    >
+                      编辑
+                    </button>
 	                  <a v-if="resume.file_url" :href="resume.file_url" target="_blank" class="btn btn-outline">下载</a>
+                    <button
+                      class="btn btn-outline danger-btn"
+                      :disabled="deletingResumeId === resume.id"
+                      @click="removeResumeItem(resume)"
+                    >
+                      {{ deletingResumeId === resume.id ? '删除中...' : '删除' }}
+                    </button>
 	                </div>
 
 	                <div v-if="previewResume === resume.id" class="resume-preview detailed-preview">
@@ -516,11 +531,11 @@
       </div>
     </section>
 
-    <div v-if="resumeDialogVisible" class="resume-dialog-mask" @click.self="resumeDialogVisible = false">
+    <div v-if="resumeDialogVisible" class="resume-dialog-mask" @click.self="closeResumeDialog">
       <div class="card resume-dialog">
         <div class="section-head">
-          <h3>新增在线简历</h3>
-          <button class="btn btn-outline" @click="resumeDialogVisible = false">关闭</button>
+          <h3>{{ editingResumeId ? '编辑在线简历' : '新增在线简历' }}</h3>
+          <button class="btn btn-outline" @click="closeResumeDialog">关闭</button>
         </div>
 	        <div class="field-grid">
 	          <div class="resume-identity field-full">
@@ -567,8 +582,10 @@
           </label>
         </div>
         <div class="actions">
-          <button class="btn" @click="createOnlineResumeFromDialog">创建在线简历</button>
-          <button class="btn btn-outline" @click="resumeDialogVisible = false">取消</button>
+          <button class="btn" :disabled="resumeSaving" @click="saveOnlineResumeFromDialog">
+            {{ resumeSaving ? '保存中...' : editingResumeId ? '保存修改' : '创建在线简历' }}
+          </button>
+          <button class="btn btn-outline" :disabled="resumeSaving" @click="closeResumeDialog">取消</button>
         </div>
       </div>
     </div>
@@ -580,9 +597,11 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   createResume,
+  deleteResume,
   fetchResumes,
   fetchStudentIntention,
   fetchStudentProfile,
+  updateResume,
   updateStudentIntention,
   updateStudentProfile,
   uploadFile,
@@ -637,6 +656,9 @@ const internshipItems = ref([createExperienceItem('internship')]);
 const projectItems = ref([createExperienceItem('project')]);
 const previewResume = ref(null);
 const resumeDialogVisible = ref(false);
+const editingResumeId = ref(0);
+const resumeSaving = ref(false);
+const deletingResumeId = ref(0);
 const resumeDraft = ref({
   summary: "",
   jobTarget: "",
@@ -899,6 +921,7 @@ async function toggleInternshipAcceptance(nextValue) {
 }
 
 function openResumeDialog() {
+  editingResumeId.value = 0;
   const defaultProjects = projectItems.value
     .map((item) => String(item.title || item.description || '').trim())
     .filter(Boolean)
@@ -918,7 +941,27 @@ function openResumeDialog() {
   resumeDialogVisible.value = true;
 }
 
-async function createOnlineResumeFromDialog() {
+function closeResumeDialog() {
+  resumeDialogVisible.value = false;
+  editingResumeId.value = 0;
+}
+
+function editResume(resume) {
+  const content = resume?.content_json || {};
+  editingResumeId.value = Number(resume?.id || 0);
+  resumeDraft.value = {
+    summary: String(content.summary || '').trim(),
+    jobTarget: String(content.job_target || '').trim(),
+    achievements: String(content.achievements || '').trim(),
+    education: String(content.education || '').trim(),
+    experience: String(content.experience || '').trim(),
+    projectsText: resumeProjectItems(resume).join('\n'),
+    skillsText: resumeSkillTags(resume).join(', ')
+  };
+  resumeDialogVisible.value = true;
+}
+
+async function saveOnlineResumeFromDialog() {
   if (!userId) return;
   const projects = parseListInput(resumeDraft.value.projectsText);
   const skills = parseListInput(resumeDraft.value.skillsText);
@@ -933,27 +976,36 @@ async function createOnlineResumeFromDialog() {
     toast.warn('请至少填写一项简历内容');
     return;
   }
+  const payload = {
+    student_id: userId,
+    resume_type: "online",
+    content_json: {
+      summary: resumeDraft.value.summary.trim(),
+      job_target: resumeDraft.value.jobTarget.trim(),
+      achievements: resumeDraft.value.achievements.trim(),
+      education: resumeDraft.value.education.trim(),
+      experience: resumeDraft.value.experience.trim(),
+      skills,
+      projects
+    },
+    file_url: "",
+    version_no: 1,
+  };
+  resumeSaving.value = true;
   try {
-    await createResume(userId, {
-      student_id: userId,
-      resume_type: "online",
-      content_json: {
-        summary: resumeDraft.value.summary.trim(),
-        job_target: resumeDraft.value.jobTarget.trim(),
-        achievements: resumeDraft.value.achievements.trim(),
-        education: resumeDraft.value.education.trim(),
-        experience: resumeDraft.value.experience.trim(),
-        skills,
-        projects
-      },
-      file_url: "",
-      version_no: 1,
-    });
-    toast.success('简历已创建');
-    resumeDialogVisible.value = false;
+    if (editingResumeId.value) {
+      await updateResume(userId, editingResumeId.value, payload);
+      toast.success('简历已更新');
+    } else {
+      await createResume(userId, payload);
+      toast.success('简历已创建');
+    }
+    closeResumeDialog();
     await loadData();
   } catch (err) {
-    toast.error('创建简历失败');
+    toast.error(editingResumeId.value ? '更新简历失败' : '创建简历失败');
+  } finally {
+    resumeSaving.value = false;
   }
 }
 
@@ -1011,6 +1063,31 @@ async function uploadResumePdf(event) {
     await loadData();
   } catch (e) {
     toast.error('上传失败');
+  }
+}
+
+async function removeResumeItem(resume) {
+  if (!userId || !resume?.id) return;
+  const label = resume.resume_type === 'online' ? '这份在线简历' : '这份附件简历';
+  if (!window.confirm(`确定要删除${label}吗？`)) return;
+
+  deletingResumeId.value = Number(resume.id);
+  try {
+    await deleteResume(userId, resume.id);
+    if (previewResume.value === resume.id) {
+      previewResume.value = null;
+    }
+    toast.success('简历已删除');
+    await loadData();
+  } catch (err) {
+    const reason = String(err?.message || '');
+    if (reason.includes('Resume is already used in applications')) {
+      toast.warn('该简历已用于投递，暂不支持删除');
+    } else {
+      toast.error('删除简历失败');
+    }
+  } finally {
+    deletingResumeId.value = 0;
   }
 }
 
@@ -1768,6 +1845,15 @@ watch(
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+}
+
+.danger-btn {
+  border-color: #efb5b5;
+  color: #a04444;
+}
+
+.danger-btn:hover:not(:disabled) {
+  background: #fff5f5;
 }
 
 .resume-preview {

@@ -171,6 +171,53 @@ def create_resume(
     return schemas.Resume.model_validate(record)
 
 
+@router.put('/{user_id}/resumes/{resume_id}', response_model=schemas.Resume)
+def update_resume(
+    user_id: int,
+    resume_id: int,
+    payload: schemas.Resume,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> schemas.Resume:
+    if user_id != payload.student_id:
+        raise HTTPException(status_code=400, detail='Student id mismatch')
+    require_self_or_roles(user_id, current_user, {'admin'})
+
+    record = db.get(Resume, resume_id)
+    if not record or record.student_id != user_id:
+        raise HTTPException(status_code=404, detail='Resume not found')
+
+    data = payload.model_dump(exclude={'id', 'create_time', 'version_no'})
+    for key, value in data.items():
+        setattr(record, key, value)
+
+    db.commit()
+    db.refresh(record)
+    return schemas.Resume.model_validate(record)
+
+
+@router.delete('/{user_id}/resumes/{resume_id}')
+def delete_resume(
+    user_id: int,
+    resume_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, str]:
+    require_self_or_roles(user_id, current_user, {'admin'})
+
+    record = db.get(Resume, resume_id)
+    if not record or record.student_id != user_id:
+        raise HTTPException(status_code=404, detail='Resume not found')
+
+    in_use = db.scalar(select(Application.id).where(Application.resume_id == resume_id).limit(1))
+    if in_use:
+        raise HTTPException(status_code=400, detail='Resume is already used in applications')
+
+    db.delete(record)
+    db.commit()
+    return {'status': 'deleted'}
+
+
 # ---------------------------------------------------------------------------
 # View History
 # ---------------------------------------------------------------------------

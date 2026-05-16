@@ -115,8 +115,15 @@ export function updateCompanyStatus(id, payload) {
   });
 }
 
-export function fetchCompanyRecommendations(id) {
-  return request(`/companies/${id}/recommendations`);
+export function fetchCompanyRecommendations(id, params = {}) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      query.set(key, value);
+    }
+  });
+  const queryString = query.toString();
+  return request(`/companies/${id}/recommendations${queryString ? `?${queryString}` : ''}`);
 }
 
 export function createVerificationRequest(companyId, payload) {
@@ -164,6 +171,19 @@ export function createResume(id, payload) {
   return request(`/students/${id}/resumes`, {
     method: 'POST',
     body: JSON.stringify(payload)
+  });
+}
+
+export function updateResume(id, resumeId, payload) {
+  return request(`/students/${id}/resumes/${resumeId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteResume(id, resumeId) {
+  return request(`/students/${id}/resumes/${resumeId}`, {
+    method: 'DELETE'
   });
 }
 
@@ -529,6 +549,10 @@ export function fetchRecommendEvaluation() {
 
 export function fetchEmploymentAnalytics() {
   return request('/admin/employment-analytics');
+}
+
+export function fetchCollegeInsights() {
+  return request('/admin/college-insights');
 }
 
 // AI Job Assistant (floating ball chat)

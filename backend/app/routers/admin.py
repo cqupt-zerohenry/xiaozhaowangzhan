@@ -32,6 +32,34 @@ from app.security import hash_password
 router = APIRouter(prefix='/admin', tags=['admin'])
 
 
+def _format_license_label(company: CompanyProfile | None) -> str:
+    if not company:
+        return '企业信息缺失'
+    if company.status == 'approved':
+        return '企业资质已认证'
+    if company.license_url:
+        return '已上传营业执照'
+    if company.credit_code:
+        return f'统一信用代码：{company.credit_code}'
+    return '待补充资质信息'
+
+
+def _format_salary(job: Job) -> str:
+    if not job:
+        return ''
+    if job.salary_min >= 1000 and job.salary_max >= 1000:
+        return f'{job.salary_min // 1000}K-{job.salary_max // 1000}K'
+    return f'{job.salary_min}-{job.salary_max} 元/月'
+
+
+def _format_job_direction(job: Job) -> str:
+    if job.skill_tags:
+        return ' / '.join(job.skill_tags[:3])
+    if job.job_type:
+        return job.job_type
+    return job.education or '不限'
+
+
 @router.get('/audits', response_model=list[schemas.AuditRecord])
 def list_audits(
     db: Session = Depends(get_db),
@@ -600,3 +628,162 @@ def employment_analytics(
     )
     cache_set_json(cache_key, result.model_dump(), ttl_seconds=30)
     return result
+
+
+@router.get('/college-insights', response_model=list[schemas.CollegeInsightItem])
+def college_insights(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles('admin')),
+) -> list[schemas.CollegeInsightItem]:
+    cache_key = 'stats:college_insights'
+    cached = cache_get_json(cache_key)
+    if cached is not None:
+        return [schemas.CollegeInsightItem(**item) for item in cached]
+
+    students = db.scalars(
+        select(StudentProfile).order_by(StudentProfile.school.asc(), StudentProfile.user_id.asc())
+    ).all()
+    if not students:
+        return []
+
+    student_map = {student.user_id: student for student in students}
+    student_ids = list(student_map)
+
+    applications = db.scalars(
+        select(Application)
+        .where(Application.student_id.in_(student_ids))
+        .order_by(Application.id.desc())
+    ).all()
+    job_ids = list({item.job_id for item in applications})
+    jobs = db.scalars(select(Job).where(Job.id.in_(job_ids))).all() if job_ids else []
+    job_map = {job.id: job for job in jobs}
+
+    company_ids = list({job.company_id for job in jobs})
+    companies = db.scalars(
+        select(CompanyProfile).where(CompanyProfile.user_id.in_(company_ids))
+    ).all() if company_ids else []
+    company_map = {company.user_id: company for company in companies}
+
+    group_map: dict[str, dict] = {}
+    for student in students:
+        school_name = student.school or '未填写学校'
+        group = group_map.setdefault(
+            school_name,
+            {
+                'id': school_name,
+                'name': school_name,
+                'grades': set(),
+                'companies': {},
+                'jobs': {},
+                'applications': [],
+            },
+        )
+        if student.grade:
+            group['grades'].add(student.grade)
+
+    for record in applications:
+        student = student_map.get(record.student_id)
+        if not student:
+            continue
+
+        school_name = student.school or '未填写学校'
+        group = group_map[school_name]
+        job = job_map.get(record.job_id)
+        company = company_map.get(job.company_id) if job else None
+        company_name = company.company_name if company else f'企业#{job.company_id}' if job else '未知企业'
+        job_name = job.job_name if job else f'岗位#{record.job_id}'
+
+        group['applications'].append(
+            schemas.CollegeInsightApplicationItem(
+                id=record.id,
+                studentName=student.name,
+                grade=student.grade,
+                jobName=job_name,
+                companyName=company_name,
+                status=record.status,
+            )
+        )
+
+        if not job:
+            continue
+
+        job_entry = group['jobs'].setdefault(
+            job.id,
+            {
+                'id': job.id,
+                'name': job.job_name,
+                'company': company_name,
+                'city': job.city,
+                'salary': _format_salary(job),
+                'major': _format_job_direction(job),
+                'applicationCount': 0,
+                'applicants': [],
+            },
+        )
+        job_entry['applicationCount'] += 1
+        job_entry['applicants'].append(
+            schemas.CollegeInsightApplicantItem(
+                name=student.name,
+                grade=student.grade,
+                status=record.status,
+            )
+        )
+
+        company_entry = group['companies'].setdefault(
+            job.company_id,
+            {
+                'id': job.company_id,
+                'name': company_name,
+                'license': _format_license_label(company),
+                'scale': company.scale if company else '',
+                'contact': company.contact_name if company else '',
+                'phone': company.contact_phone if company else '',
+                'jobs': set(),
+            },
+        )
+        company_entry['jobs'].add(job.job_name)
+
+    results: list[schemas.CollegeInsightItem] = []
+    for school_name, group in group_map.items():
+        companies_out = [
+            schemas.CollegeInsightCompanyItem(
+                id=item['id'],
+                name=item['name'],
+                license=item['license'],
+                scale=item['scale'],
+                contact=item['contact'],
+                phone=item['phone'],
+                jobs=sorted(item['jobs']),
+            )
+            for item in sorted(group['companies'].values(), key=lambda row: row['name'])
+        ]
+        jobs_out = [
+            schemas.CollegeInsightJobItem(
+                id=item['id'],
+                name=item['name'],
+                company=item['company'],
+                city=item['city'],
+                salary=item['salary'],
+                major=item['major'],
+                applicationCount=item['applicationCount'],
+                applicants=item['applicants'],
+            )
+            for item in sorted(
+                group['jobs'].values(),
+                key=lambda row: (-row['applicationCount'], row['name']),
+            )
+        ]
+        results.append(
+            schemas.CollegeInsightItem(
+                id=group['id'],
+                name=group['name'],
+                grades=sorted(group['grades']),
+                companies=companies_out,
+                jobs=jobs_out,
+                applications=group['applications'],
+            )
+        )
+
+    results.sort(key=lambda item: item.name)
+    cache_set_json(cache_key, [item.model_dump() for item in results], ttl_seconds=30)
+    return results

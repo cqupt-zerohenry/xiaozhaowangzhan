@@ -167,12 +167,36 @@
           <button class="btn btn-outline" @click="submitCertification">提交认证</button>
           <div class="divider"></div>
           <h3>推荐人才</h3>
-          <div v-if="recommendations.length === 0" class="mono">暂无推荐</div>
+          <div class="recommend-toolbar">
+            <select v-model="selectedRecommendationJobId">
+              <option value="">全部岗位综合匹配</option>
+              <option v-for="job in companyJobs" :key="job.id" :value="String(job.id)">
+                {{ job.job_name }} · {{ job.city }}
+              </option>
+            </select>
+            <span class="mono">系统会结合技能、城市、行业和实习意向进行排序</span>
+          </div>
+          <p v-if="recommendationLoading" class="mono">推荐结果加载中...</p>
+          <div v-else-if="recommendations.length === 0" class="mono">暂无推荐</div>
           <div v-else class="talent" v-for="talent in recommendations" :key="talent.student_id">
-            <div>
+            <div class="talent-main">
               <strong>{{ talent.name }}</strong>
               <p class="mono">{{ talent.major }} · {{ talent.grade }}</p>
+              <p class="mono">推荐岗位：{{ talent.target_job_name || '企业综合岗位池' }} · {{ talent.city || '城市待定' }}</p>
               <p class="mono">实习意向：{{ internshipStatusText(talent.accept_internship) }}</p>
+              <p class="mono">{{ talent.reason }}</p>
+              <div class="talent-skills">
+                <span v-for="skill in talent.matched_skills" :key="`matched-${talent.student_id}-${skill}`" class="tag mono skill-hit">
+                  命中 {{ skill }}
+                </span>
+                <span
+                  v-for="skill in (talent.missing_skills || []).slice(0, 3)"
+                  :key="`missing-${talent.student_id}-${skill}`"
+                  class="tag mono skill-miss"
+                >
+                  待补 {{ skill }}
+                </span>
+              </div>
             </div>
             <div class="actions">
               <span class="tag mono">匹配度 {{ talent.match_score }}%</span>
@@ -400,6 +424,7 @@ import {
   fetchCompanyApplications,
   fetchCompanyRecommendations,
   fetchCompanyVerificationRequests,
+  fetchJobs,
   submitCompanyCertification,
   updateApplicationStatus,
   updateCompany,
@@ -454,13 +479,16 @@ const company = ref({
 
 const recommendations = ref([]);
 const verifyRequests = ref([]);
+const companyJobs = ref([]);
 const companyAnalytics = ref(null);
 const analyticsLoading = ref(false);
 const analyticsUpdatedAt = ref('');
 const profileSaving = ref(false);
 const certSubmitting = ref(false);
 const candidateLoading = ref(false);
+const recommendationLoading = ref(false);
 const welfareInput = ref('');
+const selectedRecommendationJobId = ref('');
 
 const companyInitial = computed(() => {
   const text = (company.value.company_name || '').trim();
@@ -698,14 +726,29 @@ async function loadCompany() {
   }
 }
 
-async function loadRecommendations() {
+async function loadCompanyJobs() {
   if (!company.value.user_id) return;
   try {
-    const result = await fetchCompanyRecommendations(company.value.user_id);
+    companyJobs.value = await fetchJobs({ company_id: company.value.user_id });
+  } catch (err) {
+    companyJobs.value = [];
+  }
+}
+
+async function loadRecommendations() {
+  if (!company.value.user_id) return;
+  recommendationLoading.value = true;
+  try {
+    const params = selectedRecommendationJobId.value
+      ? { job_id: selectedRecommendationJobId.value }
+      : {};
+    const result = await fetchCompanyRecommendations(company.value.user_id, params);
     recommendations.value = result.results || [];
   } catch (err) {
     recommendations.value = [];
     toast.warn('人才推荐加载失败');
+  } finally {
+    recommendationLoading.value = false;
   }
 }
 
@@ -975,6 +1018,7 @@ onMounted(async () => {
     switchModule(tab, { syncRoute: false });
   }
   await loadCompany();
+  await loadCompanyJobs();
   await loadRecommendations();
   await loadVerifyRequests();
   await loadCandidates();
@@ -1004,6 +1048,10 @@ watch(candidateTotalPages, (total) => {
     candidatePage.value = total;
   }
 });
+
+watch(selectedRecommendationJobId, () => {
+  loadRecommendations();
+});
 </script>
 
 <style scoped>
@@ -1011,6 +1059,47 @@ watch(candidateTotalPages, (total) => {
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+
+.recommend-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.recommend-toolbar select {
+  min-width: 240px;
+  min-height: 42px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #f9fcfa;
+  color: #27453a;
+}
+
+.talent-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.talent-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.skill-hit {
+  background: rgba(15, 143, 89, 0.1);
+  border-color: rgba(15, 143, 89, 0.2);
+}
+
+.skill-miss {
+  background: rgba(141, 92, 34, 0.08);
+  border-color: rgba(141, 92, 34, 0.16);
 }
 
 .page-hero {

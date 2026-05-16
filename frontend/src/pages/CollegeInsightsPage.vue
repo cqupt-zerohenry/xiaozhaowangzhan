@@ -5,7 +5,7 @@
         <div class="hero-row">
           <div>
             <h1>学院详情查看</h1>
-            <p>按学院查看企业详情、学院相关岗位与学生投递进度。</p>
+            <p>按学院或学校查看企业详情、相关岗位与学生投递进度。</p>
           </div>
           <button class="btn btn-outline" @click="openDetail('applications')">查看投递总览</button>
         </div>
@@ -16,6 +16,8 @@
       <div class="container college-layout">
         <aside class="card college-sidebar">
           <h3>学院列表</h3>
+          <p v-if="loading" class="mono">数据加载中...</p>
+          <p v-else-if="!colleges.length" class="mono">暂无学院数据</p>
           <button
             v-for="item in colleges"
             :key="item.id"
@@ -252,8 +254,9 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import { fetchCollegeInsights } from "../services/api";
 import toast from "../utils/toast";
 
 const router = useRouter();
@@ -265,6 +268,7 @@ const jobCityFilter = ref("");
 const gradeFilter = ref("");
 const statusFilter = ref("");
 const uploadedBatchFileName = ref("");
+const loading = ref(false);
 
 const companyPage = ref(1);
 const jobPage = ref(1);
@@ -295,66 +299,21 @@ const appSteps = [
   { key: "accepted", label: "已通过" }
 ];
 
-const colleges = ref([
-  {
-    id: "cs",
-    name: "计算机学院",
-    grades: ["2022级", "2023级", "2024级", "2025级"],
-    companies: [
-      { id: "c1", name: "星云科技", license: "高新技术企业", scale: "500-1000人", contact: "李老师", phone: "13500001111", jobs: ["后端开发工程师", "SRE 运维开发工程师", "数据平台工程师"] },
-      { id: "c2", name: "云帆智能", license: "软件企业认证", scale: "100-500人", contact: "周老师", phone: "13600002222", jobs: ["前端开发工程师", "全栈开发工程师"] },
-      { id: "c3", name: "北极链路", license: "专精特新企业", scale: "1000人以上", contact: "陈老师", phone: "13700003333", jobs: ["Java 开发工程师", "中间件研发工程师"] },
-      { id: "c4", name: "青禾数据", license: "科技型中小企业", scale: "50-100人", contact: "吴老师", phone: "13800004444", jobs: ["数据分析工程师", "BI 开发工程师"] },
-      { id: "c5", name: "图灵网络", license: "高新技术企业", scale: "100-500人", contact: "赵老师", phone: "13900005555", jobs: ["测试开发工程师", "自动化测试工程师"] }
-    ],
-    jobs: [
-      { id: 101, name: "后端开发工程师", company: "星云科技", city: "重庆", salary: "14K-22K", major: "计算机科学与技术", applicationCount: 26, applicants: [{ name: "张三", grade: "2023级", status: "reviewing" }, { name: "李四", grade: "2024级", status: "to_contact" }, { name: "王五", grade: "2022级", status: "interviewing" }] },
-      { id: 102, name: "SRE 运维开发工程师", company: "星云科技", city: "成都", salary: "15K-24K", major: "网络工程", applicationCount: 18, applicants: [{ name: "孙七", grade: "2023级", status: "submitted" }, { name: "周八", grade: "2024级", status: "viewed" }] },
-      { id: 103, name: "前端开发工程师", company: "云帆智能", city: "重庆", salary: "13K-19K", major: "软件工程", applicationCount: 21, applicants: [{ name: "钱九", grade: "2025级", status: "reviewing" }, { name: "吴十", grade: "2024级", status: "accepted" }] },
-      { id: 104, name: "Java 开发工程师", company: "北极链路", city: "武汉", salary: "16K-24K", major: "计算机科学与技术", applicationCount: 12, applicants: [{ name: "郑十一", grade: "2022级", status: "to_contact" }, { name: "王十二", grade: "2023级", status: "rejected" }] },
-      { id: 105, name: "数据分析工程师", company: "青禾数据", city: "重庆", salary: "12K-18K", major: "数据科学与大数据", applicationCount: 15, applicants: [{ name: "冯十三", grade: "2024级", status: "viewed" }, { name: "陈十四", grade: "2025级", status: "submitted" }] },
-      { id: 106, name: "测试开发工程师", company: "图灵网络", city: "西安", salary: "11K-16K", major: "软件工程", applicationCount: 9, applicants: [{ name: "蒋十五", grade: "2023级", status: "interviewing" }] }
-    ],
-    applications: [
-      { id: 1, studentName: "张三", grade: "2023级", jobName: "后端开发工程师", companyName: "星云科技", status: "reviewing" },
-      { id: 2, studentName: "李四", grade: "2024级", jobName: "后端开发工程师", companyName: "星云科技", status: "to_contact" },
-      { id: 3, studentName: "王五", grade: "2022级", jobName: "后端开发工程师", companyName: "星云科技", status: "interviewing" },
-      { id: 4, studentName: "孙七", grade: "2023级", jobName: "SRE 运维开发工程师", companyName: "星云科技", status: "viewed" },
-      { id: 5, studentName: "周八", grade: "2024级", jobName: "前端开发工程师", companyName: "云帆智能", status: "accepted" },
-      { id: 6, studentName: "钱九", grade: "2025级", jobName: "Java 开发工程师", companyName: "北极链路", status: "submitted" },
-      { id: 7, studentName: "吴十", grade: "2024级", jobName: "数据分析工程师", companyName: "青禾数据", status: "rejected" },
-      { id: 8, studentName: "郑十一", grade: "2022级", jobName: "测试开发工程师", companyName: "图灵网络", status: "reviewing" }
-    ]
-  },
-  {
-    id: "auto",
-    name: "自动化学院",
-    grades: ["2022级", "2023级", "2024级"],
-    companies: [
-      { id: "a1", name: "智控工业", license: "专精特新企业", scale: "1000人以上", contact: "陈老师", phone: "13700003333", jobs: ["嵌入式工程师", "自动化控制工程师"] },
-      { id: "a2", name: "泽川机器人", license: "高新技术企业", scale: "100-500人", contact: "黄老师", phone: "13600007777", jobs: ["机器人算法工程师", "视觉算法工程师"] },
-      { id: "a3", name: "岳峰电子", license: "科技型中小企业", scale: "50-100人", contact: "杨老师", phone: "13500008888", jobs: ["硬件测试工程师", "电气工程师"] }
-    ],
-    jobs: [
-      { id: 201, name: "嵌入式工程师", company: "智控工业", city: "重庆", salary: "13K-20K", major: "自动化", applicationCount: 14, applicants: [{ name: "赵六", grade: "2022级", status: "reviewing" }, { name: "孙明", grade: "2023级", status: "interviewing" }] },
-      { id: 202, name: "自动化控制工程师", company: "智控工业", city: "重庆", salary: "12K-18K", major: "测控技术与仪器", applicationCount: 11, applicants: [{ name: "刘洋", grade: "2024级", status: "submitted" }] },
-      { id: 203, name: "机器人算法工程师", company: "泽川机器人", city: "苏州", salary: "15K-22K", major: "机器人工程", applicationCount: 8, applicants: [{ name: "王翔", grade: "2023级", status: "viewed" }] },
-      { id: 204, name: "硬件测试工程师", company: "岳峰电子", city: "成都", salary: "11K-16K", major: "电子信息工程", applicationCount: 6, applicants: [{ name: "李晨", grade: "2022级", status: "to_contact" }] }
-    ],
-    applications: [
-      { id: 21, studentName: "赵六", grade: "2022级", jobName: "嵌入式工程师", companyName: "智控工业", status: "reviewing" },
-      { id: 22, studentName: "孙明", grade: "2023级", jobName: "嵌入式工程师", companyName: "智控工业", status: "interviewing" },
-      { id: 23, studentName: "刘洋", grade: "2024级", jobName: "自动化控制工程师", companyName: "智控工业", status: "submitted" },
-      { id: 24, studentName: "王翔", grade: "2023级", jobName: "机器人算法工程师", companyName: "泽川机器人", status: "viewed" },
-      { id: 25, studentName: "李晨", grade: "2022级", jobName: "硬件测试工程师", companyName: "岳峰电子", status: "to_contact" }
-    ]
-  }
-]);
+const colleges = ref([]);
 
-const activeCollegeId = ref(colleges.value[0]?.id || "");
+const fallbackCollege = {
+  id: "",
+  name: "",
+  grades: [],
+  companies: [],
+  jobs: [],
+  applications: []
+};
+
+const activeCollegeId = ref("");
 
 const activeCollege = computed(() => (
-  colleges.value.find((item) => item.id === activeCollegeId.value) || colleges.value[0]
+  colleges.value.find((item) => item.id === activeCollegeId.value) || colleges.value[0] || fallbackCollege
 ));
 
 const uniqueCompanyScales = computed(() => (
@@ -600,6 +559,24 @@ function triggerBatchApply() {
   }
   toast.success(`已触发批量投递：${uploadedBatchFileName.value}`);
 }
+
+async function loadCollegeData() {
+  loading.value = true;
+  try {
+    const result = await fetchCollegeInsights();
+    colleges.value = Array.isArray(result) ? result : [];
+    if (!colleges.value.find((item) => item.id === activeCollegeId.value)) {
+      activeCollegeId.value = colleges.value[0]?.id || "";
+    }
+  } catch (err) {
+    colleges.value = [];
+    toast.error("学院数据加载失败");
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(loadCollegeData);
 </script>
 
 <style scoped>
